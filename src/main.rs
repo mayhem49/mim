@@ -1,21 +1,9 @@
-use std::io::{self, Read};
+#![warn(clippy::all, clippy::pedantic)]
+
+mod editor;
+use editor::Editor;
 
 fn main() {
-    let mut buffer = String::new();
-
-    io::stdin().read_line(&mut buffer).unwrap();
-
-    println!("input: {buffer:?}");
-
-    println!("next sec;");
-
-    for b in io::stdin().bytes() {
-        let c = b.unwrap() as char;
-
-        if c == 'q' {
-            println!("closing program.");
-            break;
-        }
-    }
+    let mut editor = Editor::default();
+    editor.run();
 }
-
