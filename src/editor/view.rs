@@ -1,10 +1,14 @@
+use super::buffer::Buffer;
 use super::terminal::{Size, Terminal};
 use std::io::Error;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub struct View;
+#[derive(Default)]
+pub struct View {
+    buffer: Buffer,
+}
 
 impl View {
     fn draw_welcome_message() -> Result<(), Error> {
@@ -31,15 +35,18 @@ impl View {
         Terminal::print(line)?;
         Ok(())
     }
-    pub fn render() -> Result<(), Error> {
+    pub fn render(&self) -> Result<(), Error> {
         let Size { height, .. } = Terminal::size()?;
+
+        let mut buffer_iter = self.buffer.data.iter();
         for current_row in 0..height {
             Terminal::clear_line()?;
+
             #[allow(clippy::integer_division)]
             if current_row == height / 3 {
                 Self::draw_welcome_message()?;
-            } else if current_row == 0 {
-                Self::draw_line("Hello World")?;
+            } else if let Some(line) = buffer_iter.next() {
+                Self::draw_line(line)?;
             } else {
                 Self::draw_empty_row()?;
             }

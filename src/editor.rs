@@ -1,6 +1,7 @@
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::io::Error;
 
+mod buffer;
 mod terminal;
 mod view;
 use terminal::{Position, Size, Terminal};
@@ -16,6 +17,7 @@ struct Location {
 pub struct Editor {
     should_quit: bool,
     caret: Location,
+    view: View,
 }
 
 impl Editor {
@@ -106,7 +108,7 @@ impl Editor {
             Terminal::print("Tata!\r\n")?;
         } else {
             Terminal::move_caret(Position { x: 0, y: 0 })?;
-            View::render()?;
+            self.view.render()?;
         }
 
         let Location { x, y } = self.caret;
