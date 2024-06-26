@@ -36,14 +36,12 @@ impl Editor {
                 break;
             }
             let event = read()?;
-            self.handle_event(&event);
+            self.handle_event(&event)?;
         }
         Ok(())
     }
 
-    fn handle_event(&mut self, event: &Event)
-    //-> Result<(), Error>
-    {
+    fn handle_event(&mut self, event: &Event) -> Result<(), Error> {
         if let Event::Key(KeyEvent {
             code, modifiers, ..
         }) = event
@@ -52,9 +50,40 @@ impl Editor {
                 KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
                     self.should_quit = true;
                 }
+                KeyCode::Up => {
+                    let Location { x, y } = self.cursor;
+                    let y = y.saturating_sub(1);
+                    self.cursor.x = x;
+                    self.cursor.y = y;
+                }
+                KeyCode::Down => {
+                    let Size { height, .. } = Terminal::size()?;
+                    let Location { x, y } = self.cursor;
+                    let y = y.saturating_add(1);
+                    let y = std::cmp::min(height.saturating_sub(1), y);
+                    self.cursor.x = x;
+                    self.cursor.y = y;
+                }
+                KeyCode::Right => {
+                    let Size { width, .. } = Terminal::size()?;
+                    let Location { x, y } = self.cursor;
+                    let x = x.saturating_add(1);
+                    //since crossterm coordinates starts from 0
+                    let x = std::cmp::min(width.saturating_sub(1), x);
+                    self.cursor.x = x;
+                    self.cursor.y = y;
+                }
+                KeyCode::Left => {
+                    let Location { x, y } = self.cursor;
+                    let x = x.saturating_sub(1);
+                    self.cursor.x = x;
+                    self.cursor.y = y;
+                }
+
                 _ => (),
             }
         }
+        Ok(())
     }
 
     fn refresh_screen(&self) -> Result<(), Error> {
@@ -63,8 +92,8 @@ impl Editor {
             Terminal::clear_screen()?;
             Terminal::print("Tata!\r\n")?;
         } else {
-            Self::draw_rows()?;
             Terminal::move_cursor(Position { x: 0, y: 0 })?;
+            Self::draw_rows()?;
         }
 
         let Location { x, y } = self.cursor;
