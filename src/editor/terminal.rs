@@ -6,7 +6,7 @@ use crossterm::{
     Command,
 };
 use std::io::{stdout, Error, Write};
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct Size {
     pub width: usize,
     pub height: usize,

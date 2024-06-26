@@ -1,7 +1,6 @@
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::io::Error;
 
-mod buffer;
 mod terminal;
 mod view;
 use terminal::{Position, Size, Terminal};
@@ -21,7 +20,10 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn run(&mut self) {
+    pub fn run(&mut self, file: Option<String>) {
+        if let Some(file) = file {
+            self.view.load(file);
+        }
         Terminal::initialize().unwrap();
 
         let result = self.repl();
@@ -81,13 +83,19 @@ impl Editor {
     }
 
     fn handle_event(&mut self, event: &Event) -> Result<(), Error> {
-        if let Event::Key(KeyEvent {
-            code, modifiers, ..
-        }) = event
-        {
-            #[allow(clippy::enum_glob_use)]
-            use KeyCode::*;
-            match code {
+        #[allow(clippy::enum_glob_use)]
+        use KeyCode::*;
+        match event {
+            Event::Resize(w_u16, h_u16) => {
+                #[allow(clippy::as_conversions)]
+                self.view.resize(Size {
+                    width: *w_u16 as usize,
+                    height: *h_u16 as usize,
+                });
+            }
+            Event::Key(KeyEvent {
+                code, modifiers, ..
+            }) => match code {
                 Char('q') if *modifiers == KeyModifiers::CONTROL => {
                     self.should_quit = true;
                 }
@@ -96,12 +104,14 @@ impl Editor {
                 }
 
                 _ => (),
-            }
+            },
+            _ => (),
         }
+
         Ok(())
     }
 
-    fn refresh_screen(&self) -> Result<(), Error> {
+    fn refresh_screen(&mut self) -> Result<(), Error> {
         Terminal::hide_caret()?;
         if self.should_quit {
             Terminal::clear_screen()?;

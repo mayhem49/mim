@@ -1,59 +1,81 @@
-use super::buffer::Buffer;
-use super::terminal::{Size, Terminal};
+use super::terminal::{Position, Size, Terminal};
 use std::io::Error;
 
+mod buffer;
+use buffer::Buffer;
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Default)]
 pub struct View {
     buffer: Buffer,
+    redraw: bool,
+    size: Size,
 }
 
+impl Default for View {
+    fn default() -> Self {
+        View {
+            buffer: Buffer::default(),
+            size: Terminal::size().unwrap_or_default(),
+            redraw: true,
+        }
+    }
+}
 impl View {
-    fn draw_welcome_message() -> Result<(), Error> {
+    fn build_welcome_message(width: usize) -> String {
         let mut welcome_message = format!("{NAME} editior --version {VERSION}");
-        let width = Terminal::size()?.width;
         let len = welcome_message.len();
 
         #[allow(clippy::integer_division)]
-        let padding = (width.saturating_sub(len)) / 2;
+        let padding = (width.saturating_sub(len).saturating_sub(1)) / 2;
 
-        let spaces = " ".repeat(padding.saturating_sub(1));
-        welcome_message = format!("~{spaces}{welcome_message}");
+        welcome_message = format!("~{}{welcome_message}", " ".repeat(padding));
         welcome_message.truncate(width);
-        Terminal::print(&welcome_message)?;
+        welcome_message
+    }
+    fn draw_line(at: usize, line: &str) -> Result<(), Error> {
+        Terminal::move_caret(Position { x: 0, y: at })?;
 
-        Ok(())
-    }
-    fn draw_empty_row() -> Result<(), Error> {
-        Terminal::print("~")?;
-        Ok(())
-    }
-    fn draw_line(line: &str) -> Result<(), Error> {
-        Terminal::print("~")?;
+        Terminal::clear_line()?;
         Terminal::print(line)?;
         Ok(())
     }
-    pub fn render(&self) -> Result<(), Error> {
-        let Size { height, .. } = Terminal::size()?;
+    pub fn render(&mut self) -> Result<(), Error> {
+        if !self.redraw {
+            return Ok(());
+        }
+        self.redraw = false;
+        let Size { height, width } = Terminal::size()?;
 
-        let mut buffer_iter = self.buffer.data.iter();
         for current_row in 0..height {
-            Terminal::clear_line()?;
-
             #[allow(clippy::integer_division)]
-            if current_row == height / 3 {
-                Self::draw_welcome_message()?;
-            } else if let Some(line) = buffer_iter.next() {
-                Self::draw_line(line)?;
+            let vertical_center = height / 3;
+
+            if let Some(line) = self.buffer.lines.get(current_row) {
+                //not utf compliant?
+                let render_len = std::cmp::min(line.len(), width);
+                Self::draw_line(current_row, line.get(0..render_len).unwrap())?;
+            } else if current_row == vertical_center && self.buffer.is_empty() {
+                Self::draw_line(current_row, &Self::build_welcome_message(width))?;
             } else {
-                Self::draw_empty_row()?;
-            }
-            if current_row.saturating_add(1) < height {
-                Terminal::print("\r\n")?;
+                Self::draw_line(current_row, "~")?;
             }
         }
         Ok(())
+    }
+
+    pub fn load(&mut self, file: String) {
+        if let Ok(buffer) = Buffer::load(file) {
+            self.buffer = buffer;
+        }
+    }
+
+    pub fn resize(&mut self, size: Size) {
+        self.size = size;
+        self.redraw();
+    }
+
+    pub fn redraw(&mut self) {
+        self.redraw = true;
     }
 }
