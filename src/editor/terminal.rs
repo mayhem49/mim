@@ -25,8 +25,8 @@ pub struct Terminal;
 
 impl Terminal {
     pub fn initialize() -> Result<(), Error> {
-        Self::enter_alternate_screen()?;
         enable_raw_mode()?;
+        Self::enter_alternate_screen()?;
         Self::clear_screen()?;
         Self::execute()?;
         Ok(())
@@ -34,6 +34,7 @@ impl Terminal {
 
     pub fn terminate() -> Result<(), Error> {
         disable_raw_mode()?;
+        Self::show_caret()?;
         Self::leave_alternate_screen()?;
         Ok(())
     }
@@ -91,6 +92,13 @@ impl Terminal {
 
     pub fn leave_alternate_screen() -> Result<(), Error> {
         Self::queue_command(LeaveAlternateScreen)?;
+        Ok(())
+    }
+
+    pub fn print_row(row: usize, line: &str) -> Result<(), Error> {
+        Self::move_caret(Position { x: 0, y: row })?;
+        Self::clear_line()?;
+        Self::print(line)?;
         Ok(())
     }
 }

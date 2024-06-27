@@ -1,5 +1,4 @@
-use super::terminal::{Position, Size, Terminal};
-use std::io::Error;
+use super::terminal::{ Size, Terminal};
 
 mod buffer;
 use buffer::Buffer;
@@ -33,19 +32,16 @@ impl View {
         welcome_message.truncate(width);
         welcome_message
     }
-    fn draw_line(at: usize, line: &str) -> Result<(), Error> {
-        Terminal::move_caret(Position { x: 0, y: at })?;
-
-        Terminal::clear_line()?;
-        Terminal::print(line)?;
-        Ok(())
+    fn render_line(at: usize, line: &str) {
+        let result=Terminal::print_row(at,line);
+        debug_assert!(result.is_ok(),"Failed to render line");
     }
-    pub fn render(&mut self) -> Result<(), Error> {
+    pub fn render(&mut self) {
         if !self.redraw {
-            return Ok(());
+            return ;
         }
         self.redraw = false;
-        let Size { height, width } = Terminal::size()?;
+        let Size { height, width } = self.size;
 
         for current_row in 0..height {
             #[allow(clippy::integer_division)]
@@ -54,14 +50,13 @@ impl View {
             if let Some(line) = self.buffer.lines.get(current_row) {
                 //not utf compliant?
                 let render_len = std::cmp::min(line.len(), width);
-                Self::draw_line(current_row, line.get(0..render_len).unwrap())?;
+                Self::render_line(current_row, line.get(0..render_len).unwrap());
             } else if current_row == vertical_center && self.buffer.is_empty() {
-                Self::draw_line(current_row, &Self::build_welcome_message(width))?;
+                Self::render_line(current_row, &Self::build_welcome_message(width));
             } else {
-                Self::draw_line(current_row, "~")?;
+                Self::render_line(current_row, "~");
             }
         }
-        Ok(())
     }
 
     pub fn load(&mut self, file: String) {
