@@ -48,7 +48,7 @@ impl Editor {
                 "file:{file} doesn't exist"
             );
 
-            view.load(file.to_string());
+            view.load(file);
         }
 
         Ok(Editor {

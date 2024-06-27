@@ -59,10 +59,11 @@ impl View {
         }
     }
 
-    pub fn load(&mut self, file: String) {
+    pub fn load(&mut self, file: &str) {
         if let Ok(buffer) = Buffer::load(file) {
             self.buffer = buffer;
         }
+        self.redraw=true;
     }
 
     pub fn resize(&mut self, size: Size) {
