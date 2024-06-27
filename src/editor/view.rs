@@ -1,7 +1,11 @@
-use super::terminal::{ Size, Terminal};
+use super::{
+    terminal::{Size, Terminal},
+    Location,
+};
 
 mod buffer;
 use buffer::Buffer;
+use crossterm::event::{KeyCode, KeyEvent};
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -9,6 +13,7 @@ pub struct View {
     buffer: Buffer,
     redraw: bool,
     size: Size,
+    caret: Location,
 }
 
 impl Default for View {
@@ -17,6 +22,7 @@ impl Default for View {
             buffer: Buffer::default(),
             size: Terminal::size().unwrap_or_default(),
             redraw: true,
+            caret: Location::default(),
         }
     }
 }
@@ -33,12 +39,12 @@ impl View {
         welcome_message
     }
     fn render_line(at: usize, line: &str) {
-        let result=Terminal::print_row(at,line);
-        debug_assert!(result.is_ok(),"Failed to render line");
+        let result = Terminal::print_row(at, line);
+        debug_assert!(result.is_ok(), "Failed to render line");
     }
     pub fn render(&mut self) {
         if !self.redraw {
-            return ;
+            return;
         }
         self.redraw = false;
         let Size { height, width } = self.size;
@@ -63,7 +69,7 @@ impl View {
         if let Ok(buffer) = Buffer::load(file) {
             self.buffer = buffer;
         }
-        self.redraw=true;
+        self.redraw = true;
     }
 
     pub fn resize(&mut self, size: Size) {
@@ -73,5 +79,61 @@ impl View {
 
     pub fn redraw(&mut self) {
         self.redraw = true;
+    }
+
+    pub fn handle_key_press(&mut self, key_event: KeyEvent) {
+        #[allow(clippy::enum_glob_use)]
+        use KeyCode::*;
+
+        let KeyEvent { code, .. } = key_event;
+        match code {
+            Up | Down | Right | Left | PageUp | PageDown | Home | End => {
+                self.update_caret_location(code);
+            }
+
+            _ => (),
+        }
+    }
+
+    fn update_caret_location(&mut self, key: KeyCode) {
+        #[allow(clippy::enum_glob_use)]
+        use KeyCode::*;
+
+        //note: repercussions of default?
+        let Size { height, width } = Terminal::size().unwrap_or_default();
+        let Location { mut x, mut y } = self.caret;
+
+        match key {
+            Up => {
+                y = y.saturating_sub(1);
+            }
+            Down => {
+                y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1));
+            }
+            Left => {
+                x = x.saturating_sub(1);
+            }
+            Right => {
+                x = std::cmp::min(width.saturating_sub(1), x.saturating_add(1));
+            }
+            PageUp => {
+                y = 0;
+            }
+            PageDown => {
+                y = height.saturating_sub(1);
+            }
+            Home => {
+                x = 0;
+            }
+            End => {
+                x = width.saturating_sub(1);
+            }
+            _ => (),
+        }
+        self.caret = Location { x, y };
+    }
+
+    pub fn get_caret_location(&mut self) -> Location {
+        self.caret
     }
 }
