@@ -1,19 +1,19 @@
-use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::{
     io::Error,
     panic::{set_hook, take_hook},
 };
 
+use crossterm::event::{read, Event, KeyEvent, KeyEventKind};
+
 mod terminal;
 mod view;
-use terminal::{Position, Size, Terminal};
+mod editorcommand;
+
+use terminal::{ Terminal};
 use view::View;
 
-#[derive(Copy, Clone, Default)]
-struct Location {
-    x: usize,
-    y: usize,
-}
+use self::editorcommand::EditorCommand;
+
 
 #[derive(Default)]
 pub struct Editor {
@@ -76,25 +76,29 @@ impl Editor {
 
     #[allow(clippy::needless_pass_by_value)]
     fn handle_event(&mut self, event: Event) {
-        match event {
-            Event::Resize(w_u16, h_u16) => {
-                #[allow(clippy::as_conversions)]
-                self.view.resize(Size {
-                    width: w_u16 as usize,
-                    height: h_u16 as usize,
-                });
-            }
-            Event::Key(
-                key_event @ KeyEvent {
-                    code, modifiers, ..
-                },
-            ) => match code {
-                KeyCode::Char('q') if modifiers == KeyModifiers::CONTROL => {
-                    self.should_quit = true;
+
+        let should_handle = match &event {
+            Event::Resize(_,_) => true,
+            Event::Key( KeyEvent { kind,  .. }) => kind == &KeyEventKind::Press,
+            _ => false,
+        };
+        if should_handle{
+            match EditorCommand::try_from(event){
+                Ok(command) =>{ 
+                    if matches!(command, EditorCommand::Quit){
+                        self.should_quit = true;
+                    }else{
+                        self.view.handle_command(command);
+                    }
                 }
-                _ => self.view.handle_key_press(key_event),
-            },
-            _ => (),
+                Err(err) => { 
+                    #[cfg(debug_assertions)]
+                    panic!("couldnot handle event: {err}")
+                }
+            }
+        }
+        else{
+            panic!("event unsupported {event:?}");
         }
     }
 
@@ -102,8 +106,7 @@ impl Editor {
         let _ = Terminal::hide_caret();
         self.view.render();
 
-        let Location { x, y } = self.view.get_caret_location();
-        let _ = Terminal::move_caret(Position { x, y });
+        let _ = Terminal::move_caret( self.view.get_caret_location());
         let _ = Terminal::show_caret();
         let _ = Terminal::execute();
     }

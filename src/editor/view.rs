@@ -1,11 +1,15 @@
 use super::{
-    terminal::{Size, Terminal},
-    Location,
+    editorcommand::{Direction, EditorCommand},
+    terminal::{Position, Size, Terminal},
 };
 
 mod buffer;
+mod line;
+mod location;
+
 use buffer::Buffer;
-use crossterm::event::{KeyCode, KeyEvent};
+use location::Location;
+
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -13,7 +17,8 @@ pub struct View {
     buffer: Buffer,
     redraw: bool,
     size: Size,
-    caret: Location,
+    location: Location,
+    scroll_offset: Location,
 }
 
 impl Default for View {
@@ -22,7 +27,8 @@ impl Default for View {
             buffer: Buffer::default(),
             size: Terminal::size().unwrap_or_default(),
             redraw: true,
-            caret: Location::default(),
+            location: Location::default(),
+            scroll_offset: Location::default(),
         }
     }
 }
@@ -48,15 +54,20 @@ impl View {
         }
         self.redraw = false;
         let Size { height, width } = self.size;
+        let Location {
+            x: scroll_x,
+            y: scroll_y,
+        } = self.scroll_offset;
 
         for current_row in 0..height {
             #[allow(clippy::integer_division)]
             let vertical_center = height / 3;
 
-            if let Some(line) = self.buffer.lines.get(current_row) {
+            if let Some(line) = self.buffer.lines.get(current_row.saturating_add(scroll_y)) {
                 //not utf compliant?
-                let render_len = std::cmp::min(line.len(), width);
-                Self::render_line(current_row, line.get(0..render_len).unwrap());
+                let left = scroll_x;
+                let right = scroll_x.saturating_add(width);
+                Self::render_line(current_row, &line.get(left..right));
             } else if current_row == vertical_center && self.buffer.is_empty() {
                 Self::render_line(current_row, &Self::build_welcome_message(width));
             } else {
@@ -81,59 +92,63 @@ impl View {
         self.redraw = true;
     }
 
-    pub fn handle_key_press(&mut self, key_event: KeyEvent) {
-        #[allow(clippy::enum_glob_use)]
-        use KeyCode::*;
+    fn move_text_location(&mut self, direction: &Direction) {
+        let Size { height, width } = self.size;
+        let Location { mut x, mut y } = self.location;
 
-        let KeyEvent { code, .. } = key_event;
-        match code {
-            Up | Down | Right | Left | PageUp | PageDown | Home | End => {
-                self.update_caret_location(code);
-            }
-
-            _ => (),
-        }
-    }
-
-    fn update_caret_location(&mut self, key: KeyCode) {
-        #[allow(clippy::enum_glob_use)]
-        use KeyCode::*;
-
-        //note: repercussions of default?
-        let Size { height, width } = Terminal::size().unwrap_or_default();
-        let Location { mut x, mut y } = self.caret;
-
-        match key {
-            Up => {
+        match direction {
+            Direction::Up => {
                 y = y.saturating_sub(1);
             }
-            Down => {
-                y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1));
+            Direction::Down => {
+                y = y.saturating_add(1);
+                //y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1)); y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1));
             }
-            Left => {
+            Direction::Left => {
                 x = x.saturating_sub(1);
             }
-            Right => {
-                x = std::cmp::min(width.saturating_sub(1), x.saturating_add(1));
+            Direction::Right => {
+                x = x.saturating_add(1);
+                //x = std::cmp::min(width.saturating_sub(1), x.saturating_add(1));
             }
-            PageUp => {
+            Direction::PageUp => {
                 y = 0;
             }
-            PageDown => {
+            Direction::PageDown => {
                 y = height.saturating_sub(1);
             }
-            Home => {
+            Direction::Home => {
                 x = 0;
             }
-            End => {
+            Direction::End => {
                 x = width.saturating_sub(1);
             }
-            _ => (),
         }
-        self.caret = Location { x, y };
+        self.location = Location { x, y };
+        self.update_scroll_offset();
     }
 
-    pub fn get_caret_location(&mut self) -> Location {
-        self.caret
+    fn update_scroll_offset(&mut self) {
+        let Location { x, y } = self.location;
+        let Size { width, height } = self.size;
+
+        self.scroll_offset = Location {
+            x: x.saturating_add(1).saturating_sub(width),
+            y: y.saturating_add(1).saturating_sub(height),
+        };
+        //todo: redraw only if scroll offset changes
+        self.redraw();
+    }
+
+    pub fn get_caret_location(&self) -> Position {
+        self.location.subtract(&self.scroll_offset).into()
+    }
+
+    pub fn handle_command(&mut self, command: EditorCommand) {
+        match command {
+            EditorCommand::Move(direction) => self.move_text_location(&direction),
+            EditorCommand::Resize(size) => self.resize(size),
+            EditorCommand::Quit => {}
+        }
     }
 }
