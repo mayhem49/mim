@@ -2,7 +2,10 @@ use crossterm::{
     cursor::{Hide, MoveTo, Show},
     queue,
     style::Print,
-    terminal::{disable_raw_mode, enable_raw_mode, size, Clear, ClearType},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, size, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
     Command,
 };
 use std::io::{stdout, Error, Write};
@@ -22,6 +25,7 @@ pub struct Terminal;
 
 impl Terminal {
     pub fn initialize() -> Result<(), Error> {
+        Self::enter_alternate_screen()?;
         enable_raw_mode()?;
         Self::clear_screen()?;
         Self::execute()?;
@@ -30,6 +34,7 @@ impl Terminal {
 
     pub fn terminate() -> Result<(), Error> {
         disable_raw_mode()?;
+        Self::leave_alternate_screen()?;
         Ok(())
     }
     pub fn clear_screen() -> Result<(), Error> {
@@ -66,7 +71,7 @@ impl Terminal {
     }
 
     pub fn print(string: &str) -> Result<(), Error> {
-        queue!(stdout(), Print(string))?;
+        Self::queue_command(Print(string))?;
         Ok(())
     }
     pub fn queue_command<T: Command>(command: T) -> Result<(), Error> {
@@ -76,6 +81,16 @@ impl Terminal {
 
     pub fn execute() -> Result<(), Error> {
         stdout().flush()?;
+        Ok(())
+    }
+
+    pub fn enter_alternate_screen() -> Result<(), Error> {
+        Self::queue_command(EnterAlternateScreen)?;
+        Ok(())
+    }
+
+    pub fn leave_alternate_screen() -> Result<(), Error> {
+        Self::queue_command(LeaveAlternateScreen)?;
         Ok(())
     }
 }
