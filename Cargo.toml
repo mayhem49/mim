@@ -2,7 +2,7 @@
 name = "mim"
 version = "0.1.0"
 edition = "2021"
-# = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0"
+# = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0" [dependencies] crossterm = "0.27.0"
 
 [dependencies]
 crossterm = "0.27.0"

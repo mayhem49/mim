@@ -1,13 +1,17 @@
+//one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three twenty-four twenty-five twenty-six twenty-seven twenty-eight twenty-nine thirty thirty-one thirty-two thirty-three thirty-four thirty-five thirty-six thirty-seven thirty-eight thirty-nine forty forty-one forty-two forty-three forty-four forty-five forty-six forty-seven forty-eight forty-nine fifty fifty-one fifty-two fifty-three fifty-four fifty-five
 use super::{
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
 };
+
+use log::info;
 
 mod buffer;
 mod line;
 mod location;
 
 use buffer::Buffer;
+use line::Line;
 use location::Location;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -49,6 +53,13 @@ impl View {
         debug_assert!(result.is_ok(), "Failed to render line");
     }
     pub fn render(&mut self) {
+        info!("size:w,h {:?},{:?}", self.size.width, self.size.height);
+        info!("location:x,y {:?},{:?}", self.location.x, self.location.y);
+        info!(
+            "scroll:x,y {:?},{:?}",
+            self.scroll_offset.x, self.scroll_offset.y
+        );
+        info!("");
         if !self.redraw {
             return;
         }
@@ -92,8 +103,29 @@ impl View {
         self.redraw = true;
     }
 
+    /// UP
+    /// moves the cursor upward by 1
+    /// DOWN
+    /// moves the cursor downward by 1
+    /// LEFT
+    /// moves the cursor left by 1
+    /// RIGHT
+    /// moves the cursor rightward by 1
+    /// maximum right is end of line
+    /// HOME
+    /// moves the cursor to start of line
+    /// END
+    /// moves the cursor to end of the line
+    ///
+    /// PAGEUP
+    /// scroll the page upward by current height of the terminal
+    /// cursor will be at the bottom of the view
+    /// PAGEDOWN
+    /// scroll the page downward by current height of the terminal
+    ///
+    /// during vertical movement: x will be adjusted if x of prev line is greater then line length
     fn move_text_location(&mut self, direction: &Direction) {
-        let Size { height, width } = self.size;
+        let Size { height, .. } = self.size;
         let Location { mut x, mut y } = self.location;
 
         match direction {
@@ -108,36 +140,70 @@ impl View {
                 x = x.saturating_sub(1);
             }
             Direction::Right => {
-                x = x.saturating_add(1);
-                //x = std::cmp::min(width.saturating_sub(1), x.saturating_add(1));
+                let len = self.buffer.lines.get(y).map_or(0, Line::len);
+                x = std::cmp::min(x.saturating_add(1), len);
             }
             Direction::PageUp => {
-                y = 0;
+                y = y.saturating_add(1).saturating_sub(height);
             }
             Direction::PageDown => {
-                y = height.saturating_sub(1);
+                //doesn't work correctly currently since scroll offset is not preperly updated
+                //i guess
+                y = y.saturating_add(height);
             }
             Direction::Home => {
                 x = 0;
             }
             Direction::End => {
-                x = width.saturating_sub(1);
+                //how to handle view?
+                x = self.buffer.lines.get(y).map_or(0, Line::len);
             }
         }
+        y = std::cmp::min(y, self.buffer.lines.len());
+        x = self
+            .buffer
+            .lines
+            .get(y)
+            .map_or(0, |line| std::cmp::min(x, line.len()));
         self.location = Location { x, y };
         self.update_scroll_offset();
     }
 
     fn update_scroll_offset(&mut self) {
-        let Location { x, y } = self.location;
         let Size { width, height } = self.size;
+        let Location { x, y } = self.location;
+        let Location {
+            x: mut scroll_x,
+            y: mut scroll_y,
+        } = self.scroll_offset;
 
-        self.scroll_offset = Location {
-            x: x.saturating_add(1).saturating_sub(width),
-            y: y.saturating_add(1).saturating_sub(height),
-        };
-        //todo: redraw only if scroll offset changes
+        //currently if the view changes, just chagne the current column to be the left most
+        //location
+        if x >= scroll_x.saturating_add(width) {
+            //scroll_x = x.saturating_add(width);
+            scroll_x = x;
+        } else if x < scroll_x {
+            scroll_x = x;
+        }
+
+        //vertical
+        //currently if the view changes, just chagne the current row to be the top most
+        //location
+        if y >= scroll_y.saturating_add(height) {
+            //scroll_y = y.saturating_add(height);
+            scroll_y = y;
+        } else if y < scroll_y {
+            scroll_y = y;
+        }
+
         self.redraw();
+        if !(scroll_x == self.scroll_offset.x && scroll_y == self.scroll_offset.y) {
+            //doesn't matter whether x or y changes
+            self.scroll_offset = Location {
+                x: scroll_x,
+                y: scroll_y,
+            };
+        }
     }
 
     pub fn get_caret_location(&self) -> Position {

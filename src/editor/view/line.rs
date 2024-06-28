@@ -15,4 +15,8 @@ impl Line {
             string: String::from(string),
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.string.len()
+    }
 }

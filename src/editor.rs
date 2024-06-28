@@ -5,15 +5,14 @@ use std::{
 
 use crossterm::event::{read, Event, KeyEvent, KeyEventKind};
 
+mod editorcommand;
 mod terminal;
 mod view;
-mod editorcommand;
 
-use terminal::{ Terminal};
+use terminal::Terminal;
 use view::View;
 
 use self::editorcommand::EditorCommand;
-
 
 #[derive(Default)]
 pub struct Editor {
@@ -76,28 +75,26 @@ impl Editor {
 
     #[allow(clippy::needless_pass_by_value)]
     fn handle_event(&mut self, event: Event) {
-
         let should_handle = match &event {
-            Event::Resize(_,_) => true,
-            Event::Key( KeyEvent { kind,  .. }) => kind == &KeyEventKind::Press,
+            Event::Resize(_, _) => true,
+            Event::Key(KeyEvent { kind, .. }) => kind == &KeyEventKind::Press,
             _ => false,
         };
-        if should_handle{
-            match EditorCommand::try_from(event){
-                Ok(command) =>{ 
-                    if matches!(command, EditorCommand::Quit){
+        if should_handle {
+            match EditorCommand::try_from(event) {
+                Ok(command) => {
+                    if matches!(command, EditorCommand::Quit) {
                         self.should_quit = true;
-                    }else{
+                    } else {
                         self.view.handle_command(command);
                     }
                 }
-                Err(err) => { 
+                Err(err) => {
                     #[cfg(debug_assertions)]
                     panic!("couldnot handle event: {err}")
                 }
             }
-        }
-        else{
+        } else {
             panic!("event unsupported {event:?}");
         }
     }
@@ -106,7 +103,7 @@ impl Editor {
         let _ = Terminal::hide_caret();
         self.view.render();
 
-        let _ = Terminal::move_caret( self.view.get_caret_location());
+        let _ = Terminal::move_caret(self.view.get_caret_location());
         let _ = Terminal::show_caret();
         let _ = Terminal::execute();
     }
