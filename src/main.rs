@@ -9,18 +9,18 @@
 
 extern crate simplelog;
 
+use simplelog::{Config, LevelFilter, WriteLogger};
 use std::fs::File;
-use simplelog::{WriteLogger,LevelFilter,Config};
-
 
 mod editor;
 use editor::Editor;
 
 fn main() {
-    WriteLogger::new(
+    WriteLogger::init(
         LevelFilter::Info,
         Config::default(),
         File::create("my_rust_binary.log").unwrap(),
-    );
+    )
+    .unwrap();
     Editor::new().unwrap().run();
 }
