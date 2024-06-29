@@ -4,8 +4,6 @@ use super::{
     terminal::{Position, Size, Terminal},
 };
 
-use log::info;
-
 mod buffer;
 mod line;
 mod location;
@@ -21,8 +19,9 @@ pub struct View {
     buffer: Buffer,
     redraw: bool,
     size: Size,
+    //Todo: rename after configuring nvim
     location: Location,
-    scroll_offset: Location,
+    scroll_offset: Position,
 }
 
 impl Default for View {
@@ -32,7 +31,7 @@ impl Default for View {
             size: Terminal::size().unwrap_or_default(),
             redraw: true,
             location: Location::default(),
-            scroll_offset: Location::default(),
+            scroll_offset: Position::default(),
         }
     }
 }
@@ -48,26 +47,45 @@ impl View {
         welcome_message.truncate(width);
         welcome_message
     }
+
     fn render_line(at: usize, line: &str) {
         let result = Terminal::print_row(at, line);
         debug_assert!(result.is_ok(), "Failed to render line");
     }
+
     pub fn render(&mut self) {
-        info!("size:w,h {:?},{:?}", self.size.width, self.size.height);
-        info!("location:x,y {:?},{:?}", self.location.x, self.location.y);
-        info!(
-            "scroll:x,y {:?},{:?}",
-            self.scroll_offset.x, self.scroll_offset.y
+        //info!("size:w,h {:?},{:?}", self.size.width, self.size.height);
+        log::info!(
+            "text_location:x,y {:?},{:?}",
+            self.location.x,
+            self.location.y
         );
-        info!("");
+        log::info!(
+            "scroll:x,y {:?},{:?}",
+            self.scroll_offset.col,
+            self.scroll_offset.row
+        );
+        let x = self
+            .buffer
+            .lines
+            .get(self.location.y)
+            .map_or(0, |line| line.width_until(self.location.x));
+        let xes = self
+            .buffer
+            .lines
+            .get(self.location.y)
+            .map_or(0, Line::grapheme_count);
+        log::info!("x {x} graphemes: {xes}");
+        log::info!("");
+
         if !self.redraw {
             return;
         }
         self.redraw = false;
         let Size { height, width } = self.size;
-        let Location {
-            x: scroll_x,
-            y: scroll_y,
+        let Position {
+            col: scroll_x,
+            row: scroll_y,
         } = self.scroll_offset;
 
         for current_row in 0..height {
@@ -78,7 +96,7 @@ impl View {
                 //not utf compliant?
                 let left = scroll_x;
                 let right = scroll_x.saturating_add(width);
-                Self::render_line(current_row, &line.get(left..right));
+                Self::render_line(current_row, &line.get_graphemes(left..right));
             } else if current_row == vertical_center && self.buffer.is_empty() {
                 Self::render_line(current_row, &Self::build_welcome_message(width));
             } else {
@@ -96,6 +114,7 @@ impl View {
 
     pub fn resize(&mut self, size: Size) {
         self.size = size;
+        self.update_scroll_offset();
         self.redraw();
     }
 
@@ -129,19 +148,13 @@ impl View {
         let Location { mut x, mut y } = self.location;
 
         match direction {
+            //vertical
             Direction::Up => {
                 y = y.saturating_sub(1);
             }
             Direction::Down => {
                 y = y.saturating_add(1);
                 //y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1)); y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1));
-            }
-            Direction::Left => {
-                x = x.saturating_sub(1);
-            }
-            Direction::Right => {
-                let len = self.buffer.lines.get(y).map_or(0, Line::utf_len);
-                x = std::cmp::min(x.saturating_add(1), len);
             }
             Direction::PageUp => {
                 y = y.saturating_add(1).saturating_sub(height);
@@ -151,12 +164,20 @@ impl View {
                 //i guess
                 y = y.saturating_add(height);
             }
+            //horizontal
+            Direction::Left => {
+                x = x.saturating_sub(1);
+            }
+            Direction::Right => {
+                let len = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
+                x = std::cmp::min(x.saturating_add(1), len);
+            }
             Direction::Home => {
                 x = 0;
             }
             Direction::End => {
                 //how to handle view?
-                x = self.buffer.lines.get(y).map_or(0, Line::utf_len);
+                x = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
             }
         }
         y = std::cmp::min(y, self.buffer.lines.len());
@@ -164,17 +185,29 @@ impl View {
             .buffer
             .lines
             .get(y)
-            .map_or(0, |line| std::cmp::min(x, line.utf_len()));
+            .map_or(0, |line| std::cmp::min(x, line.grapheme_count()));
+
         self.location = Location { x, y };
         self.update_scroll_offset();
     }
 
+    fn text_location_to_position(&self) -> Position {
+        let Location { x, y } = self.location;
+        let x = self
+            .buffer
+            .lines
+            .get(y)
+            .map_or(0, |line| line.width_until(x));
+        Position { col: x, row: y }
+    }
+
     fn update_scroll_offset(&mut self) {
         let Size { width, height } = self.size;
-        let Location { x, y } = self.location;
-        let Location {
-            x: mut scroll_x,
-            y: mut scroll_y,
+        let Position { col: x, row: y } = self.text_location_to_position();
+
+        let Position {
+            col: mut scroll_x,
+            row: mut scroll_y,
         } = self.scroll_offset;
 
         //currently if the view changes, just chagne the current column to be the left most
@@ -197,17 +230,18 @@ impl View {
         }
 
         self.redraw();
-        if !(scroll_x == self.scroll_offset.x && scroll_y == self.scroll_offset.y) {
+        if !(scroll_x == self.scroll_offset.col && scroll_y == self.scroll_offset.row) {
             //doesn't matter whether x or y changes
-            self.scroll_offset = Location {
-                x: scroll_x,
-                y: scroll_y,
+            self.scroll_offset = Position {
+                col: scroll_x,
+                row: scroll_y,
             };
         }
     }
 
     pub fn get_caret_location(&self) -> Position {
-        self.location.subtract(&self.scroll_offset).into()
+        self.text_location_to_position()
+            .subtract(&self.scroll_offset)
     }
 
     pub fn handle_command(&mut self, command: EditorCommand) {

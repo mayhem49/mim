@@ -9,4 +9,5 @@ crossterm = "0.27.0"
 log = "0.4.21"
 simplelog = "0.12.2"
 unicode-segmentation = "1.11.0"
+unicode-width = "0.1.13"
 

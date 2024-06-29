@@ -15,12 +15,20 @@ pub struct Size {
     pub height: usize,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct Position {
-    pub x: usize,
-    pub y: usize,
+    pub col: usize,
+    pub row: usize,
 }
 
+impl Position {
+    pub fn subtract(&self, other: &Self) -> Self {
+        Self {
+            col: self.col.saturating_sub(other.col),
+            row: self.row.saturating_sub(other.row),
+        }
+    }
+}
 pub struct Terminal;
 
 impl Terminal {
@@ -56,9 +64,9 @@ impl Terminal {
         Ok(())
     }
 
-    pub fn move_caret(Position { x, y }: Position) -> Result<(), Error> {
+    pub fn move_caret(Position { row, col }: Position) -> Result<(), Error> {
         #[allow(clippy::as_conversions, clippy::cast_possible_truncation)]
-        Self::queue_command(MoveTo(x as u16, y as u16))?;
+        Self::queue_command(MoveTo(col as u16, row as u16))?;
         Ok(())
     }
 
@@ -96,7 +104,7 @@ impl Terminal {
     }
 
     pub fn print_row(row: usize, line: &str) -> Result<(), Error> {
-        Self::move_caret(Position { x: 0, y: row })?;
+        Self::move_caret(Position { col: 0, row })?;
         Self::clear_line()?;
         Self::print(line)?;
         Ok(())
