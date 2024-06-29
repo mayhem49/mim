@@ -1,4 +1,5 @@
 use std::ops::Range;
+use unicode_segmentation::UnicodeSegmentation;
 pub struct Line {
     string: String,
 }
@@ -6,8 +7,12 @@ pub struct Line {
 impl Line {
     pub fn get(&self, range: Range<usize>) -> String {
         let Range { start, end } = range;
-        let end = std::cmp::min(self.string.len(), end);
-        self.string.get(start..end).unwrap_or_default().to_string()
+        let end = std::cmp::min(self.utf_len(), end);
+        self.string
+            .graphemes(true)
+            .skip(start)
+            .take(end.saturating_sub(start))
+            .collect()
     }
 
     pub fn from(string: &str) -> Self {
@@ -16,7 +21,7 @@ impl Line {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.string.len()
+    pub fn utf_len(&self) -> usize {
+        self.string.graphemes(true).count()
     }
 }

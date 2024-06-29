@@ -140,7 +140,7 @@ impl View {
                 x = x.saturating_sub(1);
             }
             Direction::Right => {
-                let len = self.buffer.lines.get(y).map_or(0, Line::len);
+                let len = self.buffer.lines.get(y).map_or(0, Line::utf_len);
                 x = std::cmp::min(x.saturating_add(1), len);
             }
             Direction::PageUp => {
@@ -156,7 +156,7 @@ impl View {
             }
             Direction::End => {
                 //how to handle view?
-                x = self.buffer.lines.get(y).map_or(0, Line::len);
+                x = self.buffer.lines.get(y).map_or(0, Line::utf_len);
             }
         }
         y = std::cmp::min(y, self.buffer.lines.len());
@@ -164,7 +164,7 @@ impl View {
             .buffer
             .lines
             .get(y)
-            .map_or(0, |line| std::cmp::min(x, line.len()));
+            .map_or(0, |line| std::cmp::min(x, line.utf_len()));
         self.location = Location { x, y };
         self.update_scroll_offset();
     }
