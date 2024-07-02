@@ -18,6 +18,13 @@ impl GraphemeWidth {
             Self::Full => 2,
         }
     }
+
+    fn from_value(value: usize) -> Self {
+        match value {
+            0 | 1 => Self::Half,
+            _ => Self::Full,
+        }
+    }
 }
 
 pub struct TextFragment {
@@ -31,6 +38,50 @@ pub struct Line {
 }
 
 impl Line {
+    pub fn from(string: &str) -> Self {
+        let fragments = string
+            .graphemes(true)
+            .map(|grapheme| {
+                let (replacement, rendered_width) = Self::replacement_character(grapheme)
+                    .map_or_else(
+                        //use trait
+                        || (None, GraphemeWidth::from_value(grapheme.width())),
+                        |replacement| (Some(replacement), GraphemeWidth::Half),
+                    );
+
+                TextFragment {
+                    grapheme: grapheme.to_string(),
+                    rendered_width,
+                    replacement,
+                }
+            })
+            .collect();
+        Self { fragments }
+    }
+
+    fn replacement_character(str: &str) -> Option<char> {
+        //TODO: https://www.unicode.org/charts/PDF/U2400.pdf
+        let width = str.width();
+
+        match str {
+            " " => None,
+            "\t" => Some(' '),
+            _ if width > 0 && str.trim().is_empty() => Some('␣'),
+            _ if width == 0 => {
+                let mut chars = str.chars();
+                if let Some(ch) = chars.next() {
+                    //fix: control character donot work
+                    if ch.is_control() && chars.next().is_none() {
+                        return Some('K');
+                    }
+                }
+
+                Some('.')
+            }
+
+            _ => None,
+        }
+    }
     pub fn get_graphemes(&self, range: Range<usize>) -> String {
         if range.start > range.end {
             return String::new();
@@ -55,30 +106,6 @@ impl Line {
             curr_position = fragment_end;
         }
         result
-    }
-
-    pub fn from(string: &str) -> Self {
-        let fragments = string
-            .graphemes(true)
-            .map(|grapheme| {
-                let unicode_width = grapheme.width();
-                let rendered_width = match unicode_width {
-                    0 | 1 => GraphemeWidth::Half,
-                    _ => GraphemeWidth::Full,
-                };
-
-                let replacement = match unicode_width {
-                    0 => Some('.'),
-                    _ => None,
-                };
-                TextFragment {
-                    grapheme: grapheme.to_string(),
-                    rendered_width,
-                    replacement,
-                }
-            })
-            .collect();
-        Self { fragments }
     }
 
     pub fn grapheme_count(&self) -> usize {
