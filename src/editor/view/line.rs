@@ -138,4 +138,9 @@ impl Line {
 
         self.fragments = Self::str_to_fragments(&result);
     }
+
+    pub fn remove_grapheme_at(&mut self, remove_index: usize) {
+        // do tutorial's way
+        self.fragments.remove(remove_index);
+    }
 }

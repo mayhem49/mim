@@ -112,13 +112,13 @@ impl View {
         self.redraw = true;
     }
 
-    pub fn resize(&mut self, size: Size) {
+    fn resize(&mut self, size: Size) {
         self.size = size;
         self.update_scroll_offset();
         self.redraw();
     }
 
-    pub fn insert_char(&mut self, char: char) {
+    fn insert_char(&mut self, char: char) {
         //handle enter
         let Location { y, x: _ } = self.location;
 
@@ -133,6 +133,15 @@ impl View {
             self.move_text_location(&Direction::Right);
             self.redraw();
         }
+    }
+    fn backspace(&mut self) {
+        self.move_text_location(&Direction::Left);
+        self.delete();
+    }
+
+    fn delete(&mut self) {
+        self.buffer.delete(self.location);
+        self.redraw();
     }
 
     pub fn redraw(&mut self) {
@@ -266,6 +275,8 @@ impl View {
             EditorCommand::Move(direction) => self.move_text_location(&direction),
             EditorCommand::Resize(size) => self.resize(size),
             EditorCommand::Insert(char) => self.insert_char(char),
+            EditorCommand::BackSpace => self.backspace(),
+            EditorCommand::Delete => self.delete(),
             EditorCommand::Quit => {}
         }
     }

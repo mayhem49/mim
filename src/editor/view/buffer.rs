@@ -29,4 +29,15 @@ impl Buffer {
             self.lines.push(Line::from(&char.to_string()));
         }
     }
+
+    pub fn delete(&mut self, location: Location) {
+        let Location { x, y } = location;
+        if let Some(line) = self.lines.get_mut(y) {
+            if x == line.grapheme_count() {
+                //handle
+            } else {
+                line.remove_grapheme_at(x);
+            }
+        }
+    }
 }
