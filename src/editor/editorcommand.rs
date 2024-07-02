@@ -14,6 +14,7 @@ pub enum Direction {
 pub enum EditorCommand {
     Move(Direction),
     Resize(Size),
+    Insert(char),
     Quit,
 }
 
@@ -46,6 +47,7 @@ impl TryFrom<Event> for EditorCommand {
                 (KeyCode::PageDown, _) => Ok(Self::Move(PageDown)),
                 (KeyCode::Home, _) => Ok(Self::Move(Home)),
                 (KeyCode::End, _) => Ok(Self::Move(End)),
+                (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => Ok(Self::Insert(c)),
                 _ => Err(format!(
                     " keycode {code:?} not implemented in editor command"
                 )),

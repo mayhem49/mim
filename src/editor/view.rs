@@ -55,28 +55,28 @@ impl View {
 
     pub fn render(&mut self) {
         //info!("size:w,h {:?},{:?}", self.size.width, self.size.height);
-        log::info!(
-            "text_location:x,y {:?},{:?}",
-            self.location.x,
-            self.location.y
-        );
-        log::info!(
-            "scroll:x,y {:?},{:?}",
-            self.scroll_offset.col,
-            self.scroll_offset.row
-        );
-        let x = self
-            .buffer
-            .lines
-            .get(self.location.y)
-            .map_or(0, |line| line.width_until(self.location.x));
-        let xes = self
-            .buffer
-            .lines
-            .get(self.location.y)
-            .map_or(0, Line::grapheme_count);
-        log::info!("x {x} graphemes: {xes}");
-        log::info!("");
+        //log::info!(
+        //"text_location:x,y {:?},{:?}",
+        //self.location.x,
+        //self.location.y
+        //);
+        //log::info!(
+        //"scroll:x,y {:?},{:?}",
+        //self.scroll_offset.col,
+        //self.scroll_offset.row
+        //);
+        //let x = self
+        //    .buffer
+        //    .lines
+        //    .get(self.location.y)
+        //    .map_or(0, |line| line.width_until(self.location.x));
+        //let xes = self
+        //    .buffer
+        //    .lines
+        //    .get(self.location.y)
+        //    .map_or(0, Line::grapheme_count);
+        //log::info!("x {x} graphemes: {xes}");
+        //log::info!("");
 
         if !self.redraw {
             return;
@@ -116,6 +116,23 @@ impl View {
         self.size = size;
         self.update_scroll_offset();
         self.redraw();
+    }
+
+    pub fn insert_char(&mut self, char: char) {
+        //handle enter
+        let Location { y, x: _ } = self.location;
+
+        //handle None
+        let old_graphemes = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
+
+        self.buffer.insert_char(char, self.location);
+        let new_graphemes = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
+
+        if old_graphemes == new_graphemes {
+        } else {
+            self.move_text_location(&Direction::Right);
+            self.redraw();
+        }
     }
 
     pub fn redraw(&mut self) {
@@ -248,6 +265,7 @@ impl View {
         match command {
             EditorCommand::Move(direction) => self.move_text_location(&direction),
             EditorCommand::Resize(size) => self.resize(size),
+            EditorCommand::Insert(char) => self.insert_char(char),
             EditorCommand::Quit => {}
         }
     }

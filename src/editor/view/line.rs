@@ -38,7 +38,7 @@ pub struct Line {
 }
 
 impl Line {
-    pub fn from(string: &str) -> Self {
+    fn str_to_fragments(string: &str) -> Vec<TextFragment> {
         let fragments = string
             .graphemes(true)
             .map(|grapheme| {
@@ -56,6 +56,10 @@ impl Line {
                 }
             })
             .collect();
+        fragments
+    }
+    pub fn from(string: &str) -> Self {
+        let fragments = Self::str_to_fragments(string);
         Self { fragments }
     }
 
@@ -118,5 +122,20 @@ impl Line {
             .take(grapheme_index)
             .map(|grapheme| grapheme.rendered_width.to_value())
             .sum()
+    }
+
+    pub fn insert_char(&mut self, char: char, insert_index: usize) {
+        let mut result = String::new();
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            if index == insert_index {
+                result.push(char);
+            }
+            result.push_str(&fragment.grapheme);
+        }
+        if insert_index == self.fragments.len() {
+            result.push(char);
+        }
+
+        self.fragments = Self::str_to_fragments(&result);
     }
 }

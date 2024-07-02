@@ -89,13 +89,15 @@ impl Editor {
                         self.view.handle_command(command);
                     }
                 }
-                Err(err) => {
-                    #[cfg(debug_assertions)]
-                    panic!("couldnot handle event: {err}")
+                Err(_err) => {
+                    //donot crash
+                    //#[cfg(debug_assertions)]
+                    //panic!("couldnot handle event: {err}")
                 }
             }
         } else {
-            panic!("event unsupported {event:?}");
+            //donot crash
+            //panic!("event unsupported {event:?}");
         }
     }
 
