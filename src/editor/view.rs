@@ -159,6 +159,10 @@ impl View {
         self.redraw();
     }
 
+    fn tab(&mut self) {
+        self.insert_char('\t');
+    }
+
     pub fn redraw(&mut self) {
         self.redraw = true;
     }
@@ -360,6 +364,7 @@ impl View {
             EditorCommand::Insert(char) => self.insert_char(char),
             EditorCommand::BackSpace => self.backspace(),
             EditorCommand::Delete => self.delete(),
+            EditorCommand::Tab => self.tab(),
             EditorCommand::Quit => {}
         }
     }

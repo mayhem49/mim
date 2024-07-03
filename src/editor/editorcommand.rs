@@ -22,6 +22,7 @@ pub enum EditorCommand {
     Quit,
     BackSpace,
     Delete,
+    Tab,
 }
 
 impl TryFrom<Event> for EditorCommand {
@@ -56,6 +57,7 @@ impl TryFrom<Event> for EditorCommand {
                 (KeyCode::Backspace, _) => Ok(Self::BackSpace),
                 (KeyCode::Delete, _) => Ok(Self::Delete),
                 (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => Ok(Self::Insert(c)),
+                (KeyCode::Tab, KeyModifiers::NONE) => Ok(Self::Tab),
 
                 _ => Err(format!(
                     " keycode {code:?} not implemented in editor command"
