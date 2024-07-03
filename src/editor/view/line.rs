@@ -92,7 +92,7 @@ impl Line {
         }
         let mut result = String::new();
         let mut curr_position = 0;
-        for fragment in self.fragments.iter() {
+        for fragment in &self.fragments {
             let fragment_end = fragment.rendered_width.saturating_add(curr_position);
             if curr_position >= range.end {
                 break;
@@ -142,5 +142,17 @@ impl Line {
     pub fn remove_grapheme_at(&mut self, remove_index: usize) {
         // do tutorial's way
         self.fragments.remove(remove_index);
+    }
+
+    pub fn concat(&mut self, other: &Self) {
+        let self_iter = self.fragments.iter();
+        let result_str =
+            self_iter
+                .chain(other.fragments.iter())
+                .fold(String::new(), |mut acc, fragment| {
+                    acc.push_str(&fragment.grapheme);
+                    acc
+                });
+        self.fragments = Self::str_to_fragments(&result_str);
     }
 }

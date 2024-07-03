@@ -130,16 +130,31 @@ impl View {
 
         if old_graphemes == new_graphemes {
         } else {
-            self.move_text_location(&Direction::Right);
+            self.handle_move_command(&Direction::Right);
             self.redraw();
         }
     }
     fn backspace(&mut self) {
-        self.move_text_location(&Direction::Left);
-        self.delete();
+        //todo: compare without indirection(direct struct comparison)
+        if self.location.x != 0 || self.location.y != 0 {
+            self.handle_move_command(&Direction::LeftUp);
+            self.delete();
+        }
     }
 
     fn delete(&mut self) {
+        //maybe simplify
+        if self.buffer.is_last_line(self.location.y)
+            && self.location.x
+                == self
+                    .buffer
+                    .lines
+                    .get(self.location.y)
+                    .unwrap()
+                    .grapheme_count()
+        {
+            return;
+        }
         self.buffer.delete(self.location);
         self.redraw();
     }
@@ -169,53 +184,121 @@ impl View {
     /// scroll the page downward by current height of the terminal
     ///
     /// during vertical movement: x will be adjusted if x of prev line is greater then line length
-    fn move_text_location(&mut self, direction: &Direction) {
-        let Size { height, .. } = self.size;
-        let Location { mut x, mut y } = self.location;
-
+    /// move_* command changes the `location` field only.
+    /// move_* also donot do cursor spanning on neither horizontal or vertical direction.
+    /// for scrolling need to call corresponding function.
+    fn handle_move_command(&mut self, direction: &Direction) {
         match direction {
             //vertical
             Direction::Up => {
-                y = y.saturating_sub(1);
+                self.move_up(1);
             }
             Direction::Down => {
-                y = y.saturating_add(1);
-                //y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1)); y = std::cmp::min(height.saturating_sub(1), y.saturating_add(1));
+                self.move_down(1);
             }
             Direction::PageUp => {
-                y = y.saturating_add(1).saturating_sub(height);
+                self.move_up(self.size.height.saturating_sub(1));
             }
             Direction::PageDown => {
-                //doesn't work correctly currently since scroll offset is not preperly updated
-                //i guess
-                y = y.saturating_add(height);
+                self.move_down(self.size.height.saturating_sub(1));
             }
             //horizontal
             Direction::Left => {
-                x = x.saturating_sub(1);
+                self.move_left();
+            }
+            Direction::LeftUp => {
+                self.move_left_y();
+            }
+            Direction::RightUp => {
+                self.move_right_y();
             }
             Direction::Right => {
-                let len = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
-                x = std::cmp::min(x.saturating_add(1), len);
+                self.move_right();
             }
             Direction::Home => {
-                x = 0;
+                self.move_to_start_of_line();
             }
             Direction::End => {
-                //how to handle view?
-                x = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
+                self.move_to_end_of_line();
             }
         }
-        y = std::cmp::min(y, self.buffer.lines.len());
-        x = self
-            .buffer
-            .lines
-            .get(y)
-            .map_or(0, |line| std::cmp::min(x, line.grapheme_count()));
-
-        self.location = Location { x, y };
         self.update_scroll_offset();
     }
+
+    //region: cursor movement
+    //vertical cursor movement
+    fn move_up(&mut self, line: usize) {
+        self.location.y = self.location.y.saturating_sub(line);
+        self.snap_horizontal();
+    }
+
+    fn move_down(&mut self, line: usize) {
+        self.location.y = self.location.y.saturating_add(line);
+        self.snap_vertical();
+        self.snap_horizontal();
+    }
+
+    //horizontal cursor movement
+    fn move_left(&mut self) {
+        self.location.x = self.location.x.saturating_sub(1);
+    }
+
+    fn move_left_y(&mut self) {
+        if self.location.x > 0 {
+            self.location.x = self.location.x.saturating_sub(1);
+        } else {
+            self.move_up(1);
+            self.move_to_end_of_line();
+        }
+    }
+
+    fn move_right(&mut self) {
+        let len = self
+            .buffer
+            .lines
+            .get(self.location.y)
+            .map_or(0, Line::grapheme_count);
+        self.location.x = std::cmp::min(self.location.x.saturating_add(1), len);
+    }
+
+    fn move_right_y(&mut self) {
+        let len = self
+            .buffer
+            .lines
+            .get(self.location.y)
+            .map_or(0, Line::grapheme_count);
+
+        if self.location.x < len {
+            self.location.x = self.location.x.saturating_add(1);
+        } else {
+            self.move_down(1);
+            self.move_to_start_of_line();
+        }
+    }
+
+    fn move_to_start_of_line(&mut self) {
+        self.location.x = 0;
+    }
+    fn move_to_end_of_line(&mut self) {
+        let y = self.location.y;
+        self.location.x = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
+    }
+
+    // cursor snapping
+    fn snap_horizontal(&mut self) {
+        let len = self
+            .buffer
+            .lines
+            .get(self.location.y)
+            .map_or(0, Line::grapheme_count);
+
+        self.location.x = std::cmp::min(len, self.location.x);
+    }
+
+    fn snap_vertical(&mut self) {
+        self.location.y = std::cmp::min(self.location.y, self.buffer.lines.len());
+    }
+    //end region: cursor movement
 
     fn text_location_to_position(&self) -> Position {
         let Location { x, y } = self.location;
@@ -272,7 +355,7 @@ impl View {
 
     pub fn handle_command(&mut self, command: EditorCommand) {
         match command {
-            EditorCommand::Move(direction) => self.move_text_location(&direction),
+            EditorCommand::Move(direction) => self.handle_move_command(&direction),
             EditorCommand::Resize(size) => self.resize(size),
             EditorCommand::Insert(char) => self.insert_char(char),
             EditorCommand::BackSpace => self.backspace(),

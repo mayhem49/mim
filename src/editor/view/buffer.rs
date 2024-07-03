@@ -30,14 +30,37 @@ impl Buffer {
         }
     }
 
+    pub fn is_last_line(&self, y: usize) -> bool {
+        self.lines.len().saturating_sub(1) == y
+    }
+
+    /*
+     * if: bottom right or beyond => do nothing
+     * else if: end of the line => concat line
+     * else: delete grapheme at current cursor position;
+     */
     pub fn delete(&mut self, location: Location) {
         let Location { x, y } = location;
-        if let Some(line) = self.lines.get_mut(y) {
-            if x == line.grapheme_count() {
-                //handle
-            } else {
-                line.remove_grapheme_at(x);
-            }
+
+        let is_end_of_line = x == self.lines.get(y).map_or(0, Line::grapheme_count);
+        let is_last_line = self.is_last_line(y);
+
+        //beyond bottom right
+        if y >= self.lines.len() {
+            return;
+        }
+        // bottom right
+        if is_last_line && is_end_of_line {
+            return;
+        }
+
+        if is_end_of_line {
+            //remove and get works because it isn't last line and beyond if it is eol
+            let removed_line = self.lines.remove(y.saturating_add(1));
+            let line = self.lines.get_mut(y).unwrap();
+            line.concat(&removed_line);
+        } else if let Some(line) = self.lines.get_mut(y) {
+            line.remove_grapheme_at(x);
         }
     }
 }

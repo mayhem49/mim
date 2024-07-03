@@ -1,11 +1,15 @@
 use super::terminal::Size;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
+//to handle unconstructed warnings
+#[allow(dead_code)]
 pub enum Direction {
     Up,
     Down,
     Left,
     Right,
+    LeftUp,
+    RightUp,
     Home,
     End,
     PageUp,
