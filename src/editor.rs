@@ -41,11 +41,6 @@ impl Editor {
         let args: Vec<String> = std::env::args().collect();
         let mut view = View::default();
         if let Some(file) = args.get(1) {
-            assert!(
-                std::path::Path::new(file).exists(),
-                "file:{file} doesn't exist"
-            );
-
             view.load(file);
         }
 

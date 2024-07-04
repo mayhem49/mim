@@ -59,6 +59,7 @@ impl Line {
             .collect();
         fragments
     }
+
     pub fn from(string: &str) -> Self {
         let fragments = Self::str_to_fragments(string);
         Self { fragments }
@@ -87,6 +88,11 @@ impl Line {
             _ => None,
         }
     }
+
+    pub fn get_string(&self) -> String {
+        self.get_graphemes(0..self.grapheme_count())
+    }
+
     pub fn get_graphemes(&self, range: Range<usize>) -> String {
         if range.start > range.end {
             return String::new();

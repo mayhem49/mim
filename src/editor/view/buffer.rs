@@ -1,20 +1,57 @@
 use super::line::Line;
 use super::Location;
+
+use std::fs::OpenOptions;
 use std::io::Error;
+use std::io::Write;
+
 #[derive(Default)]
 pub struct Buffer {
     pub lines: Vec<Line>,
+    filename: Option<String>,
 }
 impl Buffer {
-    pub fn load(file: &str) -> Result<Self, Error> {
-        let data = std::fs::read_to_string(file)?;
-        //let lines: Vec<Line> =
-        //data.lines().map(std::string::ToString::to_string).collect();
-        let mut buffer = Buffer::default();
-        for line in data.lines() {
-            buffer.lines.push(Line::from(line));
+    pub fn load(filename: &str) -> Result<Self, Error> {
+        if std::path::Path::new(filename).exists() {
+            let data = std::fs::read_to_string(filename)?;
+            let mut buffer = Buffer {
+                filename: Some(String::from(filename)),
+                ..Self::default()
+            };
+            for line in data.lines() {
+                buffer.lines.push(Line::from(line));
+            }
+            Ok(buffer)
+        } else {
+            let buffer = Buffer {
+                filename: Some(String::from(filename)),
+                ..Self::default()
+            };
+            Ok(buffer)
         }
-        Ok(buffer)
+    }
+
+    pub fn save_file(&mut self) {
+        //do nothing if filename doesnot exist
+        if self.filename.is_none() {
+            return;
+        }
+        let mut fileptr = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(self.filename.as_ref().unwrap())
+            .expect("couldn't open file");
+
+        //just build a string for now
+        let mut content = String::new();
+        for line in &self.lines {
+            content.push_str(&line.get_string());
+            content.push('\n'); // write \r\n to windows(maybe autodetect)
+        }
+
+        //ignore error
+        let _ = fileptr.write_all(content.as_bytes());
     }
 
     pub fn is_empty(&self) -> bool {

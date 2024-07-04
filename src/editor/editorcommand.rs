@@ -23,6 +23,7 @@ pub enum EditorCommand {
     BackSpace,
     Delete,
     Enter,
+    SaveFile,
 }
 
 impl TryFrom<Event> for EditorCommand {
@@ -46,6 +47,9 @@ impl TryFrom<Event> for EditorCommand {
                 code, modifiers, ..
             }) => match (code, modifiers) {
                 (KeyCode::Char('q'), KeyModifiers::CONTROL) => Ok(Self::Quit),
+                //TODO: remove
+                //because C-s is mapped in my tmux conf
+                (KeyCode::Char('s' | 'o'), KeyModifiers::CONTROL) => Ok(Self::SaveFile),
                 (KeyCode::Up, _) => Ok(Self::Move(Up)),
                 (KeyCode::Down, _) => Ok(Self::Move(Down)),
                 (KeyCode::Right, _) => Ok(Self::Move(Right)),

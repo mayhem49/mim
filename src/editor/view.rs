@@ -3,6 +3,7 @@ use super::{
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
 };
+use log::info;
 
 mod buffer;
 mod line;
@@ -164,6 +165,11 @@ impl View {
         self.move_down(1);
         self.move_to_start_of_line();
         self.redraw();
+    }
+
+    fn save_file(&mut self) {
+        info!("save_file");
+        self.buffer.save_file();
     }
 
     pub fn redraw(&mut self) {
@@ -369,6 +375,7 @@ impl View {
             EditorCommand::Delete => self.delete(),
             EditorCommand::Enter => self.insert_new_line(),
             EditorCommand::Quit => {}
+            EditorCommand::SaveFile => self.save_file(),
         }
     }
 }
