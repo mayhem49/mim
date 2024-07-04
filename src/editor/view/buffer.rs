@@ -46,7 +46,7 @@ impl Buffer {
         //just build a string for now
         let mut content = String::new();
         for line in &self.lines {
-            content.push_str(&line.get_string());
+            content.push_str(&line.to_string());
             content.push('\n'); // write \r\n to windows(maybe autodetect)
         }
 

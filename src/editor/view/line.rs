@@ -2,6 +2,8 @@ use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
+use std::fmt;
+
 enum GraphemeWidth {
     Half,
     Full,
@@ -38,6 +40,18 @@ pub struct Line {
     fragments: Vec<TextFragment>,
 }
 
+impl fmt::Display for Line {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let result = self
+            .fragments
+            .iter()
+            .fold(String::new(), |mut acc, fragment| {
+                acc.push_str(&fragment.grapheme);
+                acc
+            });
+        write!(f, "{result}")
+    }
+}
 impl Line {
     fn str_to_fragments(string: &str) -> Vec<TextFragment> {
         let fragments = string
@@ -87,10 +101,6 @@ impl Line {
 
             _ => None,
         }
-    }
-
-    pub fn get_string(&self) -> String {
-        self.get_graphemes(0..self.grapheme_count())
     }
 
     pub fn get_graphemes(&self, range: Range<usize>) -> String {
