@@ -33,6 +33,7 @@ pub struct TextFragment {
     replacement: Option<char>,
 }
 
+#[derive(Default)]
 pub struct Line {
     fragments: Vec<TextFragment>,
 }
@@ -154,5 +155,10 @@ impl Line {
                     acc
                 });
         self.fragments = Self::str_to_fragments(&result_str);
+    }
+
+    pub fn split_off(&mut self, index: usize) -> Self {
+        let fragments = self.fragments.split_off(index);
+        Self { fragments }
     }
 }

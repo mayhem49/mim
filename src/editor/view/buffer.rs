@@ -63,4 +63,16 @@ impl Buffer {
             line.remove_grapheme_at(x);
         }
     }
+
+    pub fn insert_new_line(&mut self, location: Location) {
+        if let Some(line) = self.lines.get_mut(location.y) {
+            let new_line = line.split_off(location.x);
+            self.lines.insert(location.y.saturating_add(1), new_line);
+        } else if location.y == self.lines.len() {
+            self.lines.push(Line::default());
+        } else {
+            self.lines
+                .insert(location.y.saturating_add(1), Line::default());
+        }
+    }
 }
