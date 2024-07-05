@@ -6,18 +6,26 @@ use std::{
 use crossterm::event::{read, Event, KeyEvent, KeyEventKind};
 
 mod editorcommand;
+mod statusbar;
 mod terminal;
 mod view;
 
+use statusbar::StatusBar;
 use terminal::Terminal;
 use view::View;
 
 use self::editorcommand::EditorCommand;
+#[derive(Default, PartialEq, Eq)]
+pub struct DocumentStatus {
+    curr_location: view::location::Location,
+    filename: Option<String>,
+    is_modified: bool,
+}
 
-#[derive(Default)]
 pub struct Editor {
     should_quit: bool,
     view: View,
+    statusbar: StatusBar,
 }
 
 impl Drop for Editor {
@@ -29,6 +37,7 @@ impl Drop for Editor {
         }
     }
 }
+
 impl Editor {
     pub fn new() -> Result<Self, Error> {
         let curr_hook = take_hook();
@@ -39,13 +48,14 @@ impl Editor {
         Terminal::initialize()?;
 
         let args: Vec<String> = std::env::args().collect();
-        let mut view = View::default();
+        let mut view = View::new(2);
         if let Some(file) = args.get(1) {
             view.load(file);
         }
 
         Ok(Editor {
             should_quit: false,
+            statusbar: StatusBar::new(1),
             view,
         })
     }
@@ -65,6 +75,8 @@ impl Editor {
                     panic!("couldn't read event: {err:?}");
                 }
             }
+            let status = self.view.get_status();
+            self.statusbar.update_status(status);
         }
     }
 
@@ -82,6 +94,9 @@ impl Editor {
                         self.should_quit = true;
                     } else {
                         self.view.handle_command(command);
+                        if let EditorCommand::Resize(size) = command {
+                            self.statusbar.resize(size);
+                        }
                     }
                 }
                 Err(_err) => {
@@ -99,6 +114,7 @@ impl Editor {
     fn refresh_screen(&mut self) {
         let _ = Terminal::hide_caret();
         self.view.render();
+        self.statusbar.render();
 
         let _ = Terminal::move_caret(self.view.get_caret_location());
         let _ = Terminal::show_caret();

@@ -2,12 +2,13 @@
 use super::{
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
+    DocumentStatus,
 };
 use log::info;
 
 mod buffer;
 mod line;
-mod location;
+pub mod location;
 
 use buffer::Buffer;
 use line::Line;
@@ -16,11 +17,14 @@ use location::Location;
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+//location: location in the test
+//y->current line in the text
+//x->current grapheme in the text
+//
 pub struct View {
     buffer: Buffer,
     redraw: bool,
     size: Size,
-    //Todo: rename after configuring nvim
     location: Location,
     scroll_offset: Position,
 }
@@ -36,7 +40,22 @@ impl Default for View {
         }
     }
 }
+
 impl View {
+    pub fn new(margin_bottom: usize) -> Self {
+        let Size { width, height } = Terminal::size().unwrap_or_default();
+        View {
+            buffer: Buffer::default(),
+            size: Size {
+                height: height.saturating_sub(margin_bottom),
+                width,
+            },
+            redraw: true,
+            location: Location::default(),
+            scroll_offset: Position::default(),
+        }
+    }
+
     fn build_welcome_message(width: usize) -> String {
         let mut welcome_message = format!("{NAME} editior --version {VERSION}");
         let len = welcome_message.len();
@@ -49,49 +68,31 @@ impl View {
         welcome_message
     }
 
+    fn editor_height(&self) -> usize {
+        self.size.height
+    }
+
     fn render_line(at: usize, line: &str) {
         let result = Terminal::print_row(at, line);
         debug_assert!(result.is_ok(), "Failed to render line");
     }
 
     pub fn render(&mut self) {
-        //info!("size:w,h {:?},{:?}", self.size.width, self.size.height);
-        //log::info!(
-        //"text_location:x,y {:?},{:?}",
-        //self.location.x,
-        //self.location.y
-        //);
-        //log::info!(
-        //"scroll:x,y {:?},{:?}",
-        //self.scroll_offset.col,
-        //self.scroll_offset.row
-        //);
-        //let x = self
-        //    .buffer
-        //    .lines
-        //    .get(self.location.y)
-        //    .map_or(0, |line| line.width_until(self.location.x));
-        //let xes = self
-        //    .buffer
-        //    .lines
-        //    .get(self.location.y)
-        //    .map_or(0, Line::grapheme_count);
-        //log::info!("x {x} graphemes: {xes}");
-        //log::info!("");
-
         if !self.redraw {
             return;
         }
         self.redraw = false;
-        let Size { height, width } = self.size;
+        let editor_height = self.editor_height();
+        let Size { width, .. } = self.size;
+
         let Position {
             col: scroll_x,
             row: scroll_y,
         } = self.scroll_offset;
 
-        for current_row in 0..height {
+        for current_row in 0..editor_height {
             #[allow(clippy::integer_division)]
-            let vertical_center = height / 3;
+            let vertical_center = editor_height / 3;
 
             if let Some(line) = self.buffer.lines.get(current_row.saturating_add(scroll_y)) {
                 //not utf compliant?
@@ -131,14 +132,14 @@ impl View {
 
         if old_graphemes == new_graphemes {
         } else {
-            self.handle_move_command(&Direction::Right);
+            self.handle_move_command(Direction::Right);
             self.redraw();
         }
     }
     fn backspace(&mut self) {
         //todo: compare without indirection(direct struct comparison)
         if self.location.x != 0 || self.location.y != 0 {
-            self.handle_move_command(&Direction::LeftUp);
+            self.handle_move_command(Direction::LeftUp);
             self.delete();
         }
     }
@@ -169,7 +170,8 @@ impl View {
 
     fn save_file(&mut self) {
         info!("save_file");
-        self.buffer.save_file();
+        //todo: ignore error for now
+        let _ = self.buffer.save_file();
     }
 
     pub fn redraw(&mut self) {
@@ -200,7 +202,7 @@ impl View {
     /// move_* command changes the `location` field only.
     /// move_* also donot do cursor spanning on neither horizontal or vertical direction.
     /// for scrolling need to call corresponding function.
-    fn handle_move_command(&mut self, direction: &Direction) {
+    fn handle_move_command(&mut self, direction: Direction) {
         match direction {
             //vertical
             Direction::Up => {
@@ -210,10 +212,10 @@ impl View {
                 self.move_down(1);
             }
             Direction::PageUp => {
-                self.move_up(self.size.height.saturating_sub(1));
+                self.move_up(self.editor_height().saturating_sub(1));
             }
             Direction::PageDown => {
-                self.move_down(self.size.height.saturating_sub(1));
+                self.move_down(self.editor_height().saturating_sub(1));
             }
             //horizontal
             Direction::Left => {
@@ -324,7 +326,8 @@ impl View {
     }
 
     fn update_scroll_offset(&mut self) {
-        let Size { width, height } = self.size;
+        let editor_height = self.editor_height();
+        let Size { width, .. } = self.size;
         let Position { col: x, row: y } = self.text_location_to_position();
 
         let Position {
@@ -332,8 +335,8 @@ impl View {
             row: mut scroll_y,
         } = self.scroll_offset;
 
-        //currently if the view changes, just chagne the current column to be the left most
-        //location
+        //currently if the view changes,
+        //just chagne the current column to be the left most location
         if x >= scroll_x.saturating_add(width) {
             //scroll_x = x.saturating_add(width);
             scroll_x = x;
@@ -342,10 +345,10 @@ impl View {
         }
 
         //vertical
-        //currently if the view changes, just chagne the current row to be the top most
-        //location
-        if y >= scroll_y.saturating_add(height) {
-            //scroll_y = y.saturating_add(height);
+        //currently if the view changes,
+        //just chagne the current row to be the top most location
+        if y >= scroll_y.saturating_add(editor_height) {
+            //scroll_y = y.saturating_add(editor_height);
             scroll_y = y;
         } else if y < scroll_y {
             scroll_y = y;
@@ -366,9 +369,18 @@ impl View {
             .subtract(&self.scroll_offset)
     }
 
+    pub fn get_status(&self) -> DocumentStatus {
+        DocumentStatus {
+            is_modified: self.buffer.is_modified,
+            curr_location: self.location,
+            //why clone in every rerender
+            filename: self.buffer.filename.clone(),
+        }
+    }
+
     pub fn handle_command(&mut self, command: EditorCommand) {
         match command {
-            EditorCommand::Move(direction) => self.handle_move_command(&direction),
+            EditorCommand::Move(direction) => self.handle_move_command(direction),
             EditorCommand::Resize(size) => self.resize(size),
             EditorCommand::Insert(char) => self.insert_char(char),
             EditorCommand::BackSpace => self.backspace(),

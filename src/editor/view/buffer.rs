@@ -8,7 +8,8 @@ use std::io::Write;
 #[derive(Default)]
 pub struct Buffer {
     pub lines: Vec<Line>,
-    filename: Option<String>,
+    pub filename: Option<String>,
+    pub is_modified: bool,
 }
 impl Buffer {
     pub fn load(filename: &str) -> Result<Self, Error> {
@@ -31,10 +32,10 @@ impl Buffer {
         }
     }
 
-    pub fn save_file(&mut self) {
+    pub fn save_file(&mut self) -> Result<(), Error> {
         //do nothing if filename doesnot exist
         if self.filename.is_none() {
-            return;
+            return Ok(());
         }
         let mut fileptr = OpenOptions::new()
             .write(true)
@@ -50,8 +51,9 @@ impl Buffer {
             content.push('\n'); // write \r\n to windows(maybe autodetect)
         }
 
-        //ignore error
-        let _ = fileptr.write_all(content.as_bytes());
+        fileptr.write_all(content.as_bytes())?;
+        self.is_modified = false;
+        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -62,8 +64,10 @@ impl Buffer {
         let Location { x, y } = text_location;
         if let Some(line) = self.lines.get_mut(y) {
             line.insert_char(char, x);
+            self.is_modified = true;
         } else if y == self.lines.len() {
             self.lines.push(Line::from(&char.to_string()));
+            self.is_modified = true;
         }
     }
 
@@ -90,14 +94,15 @@ impl Buffer {
         if is_last_line && is_end_of_line {
             return;
         }
-
         if is_end_of_line {
             //remove and get works because it isn't last line and beyond if it is eol
             let removed_line = self.lines.remove(y.saturating_add(1));
             let line = self.lines.get_mut(y).unwrap();
             line.concat(&removed_line);
+            self.is_modified = true;
         } else if let Some(line) = self.lines.get_mut(y) {
             line.remove_grapheme_at(x);
+            self.is_modified = true;
         }
     }
 
@@ -105,11 +110,14 @@ impl Buffer {
         if let Some(line) = self.lines.get_mut(location.y) {
             let new_line = line.split_off(location.x);
             self.lines.insert(location.y.saturating_add(1), new_line);
+            self.is_modified = true;
         } else if location.y == self.lines.len() {
             self.lines.push(Line::default());
+            self.is_modified = true;
         } else {
             self.lines
                 .insert(location.y.saturating_add(1), Line::default());
+            self.is_modified = true;
         }
     }
 }

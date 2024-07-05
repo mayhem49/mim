@@ -3,6 +3,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
 //to handle unconstructed warnings
 #[allow(dead_code)]
+#[derive(Clone, Copy)]
 pub enum Direction {
     Up,
     Down,
@@ -15,6 +16,7 @@ pub enum Direction {
     PageUp,
     PageDown,
 }
+#[derive(Clone, Copy)]
 pub enum EditorCommand {
     Move(Direction),
     Resize(Size),
