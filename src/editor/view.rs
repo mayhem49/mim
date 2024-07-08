@@ -27,33 +27,23 @@ pub struct View {
     size: Size,
     location: Location,
     scroll_offset: Position,
-}
-
-impl Default for View {
-    fn default() -> Self {
-        View {
-            buffer: Buffer::default(),
-            size: Terminal::size().unwrap_or_default(),
-            redraw: true,
-            location: Location::default(),
-            scroll_offset: Position::default(),
-        }
-    }
+    margin_bottom: usize,
 }
 
 impl View {
     pub fn new(margin_bottom: usize) -> Self {
-        let Size { width, height } = Terminal::size().unwrap_or_default();
-        View {
+        let mut view = View {
             buffer: Buffer::default(),
-            size: Size {
-                height: height.saturating_sub(margin_bottom),
-                width,
-            },
+            size: Size::default(),
             redraw: true,
             location: Location::default(),
             scroll_offset: Position::default(),
-        }
+            margin_bottom,
+        };
+
+        let size = Terminal::size().unwrap_or_default();
+        view.resize(size);
+        view
     }
 
     fn build_welcome_message(width: usize) -> String {
@@ -115,9 +105,13 @@ impl View {
     }
 
     fn resize(&mut self, size: Size) {
-        self.size = size;
+        let Size { width, height } = size;
+        self.size = Size {
+            height: height.saturating_sub(self.margin_bottom),
+            width,
+        };
         self.update_scroll_offset();
-        self.redraw();
+        self.redraw = true;
     }
 
     fn insert_char(&mut self, char: char) {
@@ -133,7 +127,7 @@ impl View {
         if old_graphemes == new_graphemes {
         } else {
             self.handle_move_command(Direction::Right);
-            self.redraw();
+            self.redraw = true;
         }
     }
     fn backspace(&mut self) {
@@ -158,24 +152,20 @@ impl View {
             return;
         }
         self.buffer.delete(self.location);
-        self.redraw();
+        self.redraw = true;
     }
 
     fn insert_new_line(&mut self) {
         self.buffer.insert_new_line(self.location);
         self.move_down(1);
         self.move_to_start_of_line();
-        self.redraw();
+        self.redraw = true;
     }
 
     fn save_file(&mut self) {
         info!("save_file");
         //todo: ignore error for now
         let _ = self.buffer.save_file();
-    }
-
-    pub fn redraw(&mut self) {
-        self.redraw = true;
     }
 
     /// UP
@@ -354,7 +344,7 @@ impl View {
             scroll_y = y;
         }
 
-        self.redraw();
+        self.redraw = true;
         if !(scroll_x == self.scroll_offset.col && scroll_y == self.scroll_offset.row) {
             //doesn't matter whether x or y changes
             self.scroll_offset = Position {

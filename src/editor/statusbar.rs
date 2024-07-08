@@ -36,30 +36,47 @@ impl StatusBar {
         if !self.redraw {
             return;
         }
-        //idk why as_deref works
         let filename = self
             .document_status
             .filename
             .as_deref()
             .unwrap_or("unnamed");
 
-        let mut status_line = String::new();
-        status_line.push_str(filename);
-
-        if self.document_status.is_modified {
-            status_line.push_str(" | ");
-            status_line.push_str("[+]");
-        }
         let Location { x, y } = self.document_status.curr_location;
-        status_line.push_str(" | ");
-        status_line.push_str(&format!("{}:{}", y + 1, x + 1));
 
-        status_line.truncate(self.width);
-        Terminal::print_row(self.y_position, &status_line).unwrap();
+        #[allow(clippy::arithmetic_side_effects)]
+        let right_section = format!("{}:{}", y + 1, x + 1);
+
+        let left_section = if self.document_status.is_modified {
+            format!("{} | {}", filename, "[+]")
+        } else {
+            filename.to_string()
+        };
+
+        #[allow(clippy::integer_division)]
+        let right_width = self.width / 2;
+        let left_width = self.width.saturating_sub(right_width); // to handle odd width
+        let pad = 2;
+        let left_pad = pad;
+        let right_pad = pad;
+        let left_inner_width = left_width.saturating_sub(left_pad);
+        let right_inner_width = right_width.saturating_sub(right_pad);
+
+        // <left-pad><left-section><right-section><right-pad>
+        let status_line = format!(
+            "{empty:left_pad$}{:<left_inner_width$}{:>right_inner_width$}{empty:>right_pad$}",
+            left_section,
+            right_section,
+            empty = ""
+        );
+
+        Terminal::print_inverted_row(self.y_position, &status_line).unwrap();
         self.redraw = false;
     }
 
     pub fn update_status(&mut self, new_status: DocumentStatus) {
+        use log::info;
+        info!("{:?}", new_status);
         if new_status == self.document_status {
             return;
         }

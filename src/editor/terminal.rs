@@ -1,10 +1,10 @@
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     queue,
-    style::Print,
+    style::{Attribute, Print, SetAttribute},
     terminal::{
         disable_raw_mode, enable_raw_mode, size, Clear, ClearType, EnterAlternateScreen,
-        LeaveAlternateScreen,
+        LeaveAlternateScreen, SetTitle,
     },
     Command,
 };
@@ -107,6 +107,27 @@ impl Terminal {
         Self::move_caret(Position { col: 0, row })?;
         Self::clear_line()?;
         Self::print(line)?;
+        Ok(())
+    }
+
+    pub fn print_inverted_row(row: usize, line: &str) -> Result<(), Error> {
+        Self::invert_color()?;
+        Self::print_row(row, line)?;
+        Self::reset_color()?;
+        Ok(())
+    }
+
+    pub fn invert_color() -> Result<(), Error> {
+        Self::queue_command(SetAttribute(Attribute::Reverse))?;
+        Ok(())
+    }
+    pub fn reset_color() -> Result<(), Error> {
+        Self::queue_command(SetAttribute(Attribute::Reset))?;
+        Ok(())
+    }
+
+    pub fn set_title(title: &str) -> Result<(), Error> {
+        Self::queue_command(SetTitle(title))?;
         Ok(())
     }
 }

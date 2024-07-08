@@ -15,7 +15,7 @@ use terminal::Terminal;
 use view::View;
 
 use self::editorcommand::EditorCommand;
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct DocumentStatus {
     curr_location: view::location::Location,
     filename: Option<String>,
@@ -26,6 +26,7 @@ pub struct Editor {
     should_quit: bool,
     view: View,
     statusbar: StatusBar,
+    title: String,
 }
 
 impl Drop for Editor {
@@ -47,17 +48,26 @@ impl Editor {
         }));
         Terminal::initialize()?;
 
-        let args: Vec<String> = std::env::args().collect();
-        let mut view = View::new(2);
-        if let Some(file) = args.get(1) {
-            view.load(file);
-        }
-
-        Ok(Editor {
+        let mut editor = Self {
             should_quit: false,
             statusbar: StatusBar::new(1),
-            view,
-        })
+            view: View::new(2),
+            title: String::from("mim"),
+        };
+
+        let args: Vec<String> = std::env::args().collect();
+        if let Some(file) = args.get(1) {
+            editor.view.load(file);
+        }
+
+        editor.update_status();
+        Ok(editor)
+    }
+
+    fn update_status(&mut self) {
+        let _ = Terminal::set_title(&self.title);
+        let status = self.view.get_status();
+        self.statusbar.update_status(status);
     }
 
     pub fn run(&mut self) {
@@ -75,8 +85,7 @@ impl Editor {
                     panic!("couldn't read event: {err:?}");
                 }
             }
-            let status = self.view.get_status();
-            self.statusbar.update_status(status);
+            self.update_status();
         }
     }
 
@@ -115,6 +124,7 @@ impl Editor {
         let _ = Terminal::hide_caret();
         self.view.render();
         self.statusbar.render();
+        let _ = Terminal::set_title("mim");
 
         let _ = Terminal::move_caret(self.view.get_caret_location());
         let _ = Terminal::show_caret();
