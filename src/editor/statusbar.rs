@@ -1,41 +1,40 @@
 use super::{
     terminal::{Size, Terminal},
+    uicomponent::UIComponent,
     view::location::Location,
     DocumentStatus,
 };
+use std::io::Error;
 
+#[derive(Default)]
 pub struct StatusBar {
     document_status: DocumentStatus,
     redraw: bool,
-    width: usize,
-    y_position: usize,
-    margin_bottom: usize,
+    size: Size,
 }
 
 impl StatusBar {
-    pub fn new(margin_bottom: usize) -> Self {
-        let size = Terminal::size().unwrap_or_default();
-        StatusBar {
-            document_status: DocumentStatus::default(),
-            redraw: true,
-            width: size.width,
-            y_position: size.height.saturating_sub(margin_bottom).saturating_sub(1),
-            margin_bottom,
-        }
-    }
-    pub fn resize(&mut self, size: Size) {
-        self.width = size.width;
-        self.y_position = size
-            .height
-            .saturating_sub(self.margin_bottom)
-            .saturating_sub(1);
-        self.redraw = true;
-    }
-
-    pub fn render(&mut self) {
-        if !self.redraw {
+    pub fn update_status(&mut self, new_status: DocumentStatus) {
+        if new_status == self.document_status {
             return;
         }
+        self.document_status = new_status;
+        self.mark_redraw(true);
+    }
+}
+
+impl UIComponent for StatusBar {
+    fn mark_redraw(&mut self, redraw: bool) {
+        self.redraw = redraw;
+    }
+    fn needs_redraw(&self) -> bool {
+        self.redraw
+    }
+
+    fn set_size(&mut self, size: Size) {
+        self.size = size;
+    }
+    fn draw(&self, start_y: usize) -> Result<(), Error> {
         let filename = self
             .document_status
             .filename
@@ -54,8 +53,8 @@ impl StatusBar {
         };
 
         #[allow(clippy::integer_division)]
-        let right_width = self.width / 2;
-        let left_width = self.width.saturating_sub(right_width); // to handle odd width
+        let right_width = self.size.width / 2;
+        let left_width = self.size.width.saturating_sub(right_width); // to handle odd width
         let pad = 2;
         let left_pad = pad;
         let right_pad = pad;
@@ -70,17 +69,7 @@ impl StatusBar {
             empty = ""
         );
 
-        Terminal::print_inverted_row(self.y_position, &status_line).unwrap();
-        self.redraw = false;
-    }
-
-    pub fn update_status(&mut self, new_status: DocumentStatus) {
-        use log::info;
-        info!("{:?}", new_status);
-        if new_status == self.document_status {
-            return;
-        }
-        self.document_status = new_status;
-        self.redraw = true;
+        Terminal::print_inverted_row(start_y, &status_line).unwrap();
+        Ok(())
     }
 }

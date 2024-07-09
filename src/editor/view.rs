@@ -2,9 +2,11 @@
 use super::{
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
+    uicomponent::UIComponent,
+    view::location::Location,
     DocumentStatus,
 };
-use log::info;
+use std::io::Error;
 
 mod buffer;
 mod line;
@@ -12,7 +14,6 @@ pub mod location;
 
 use buffer::Buffer;
 use line::Line;
-use location::Location;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -21,31 +22,16 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 //y->current line in the text
 //x->current grapheme in the text
 //
+#[derive(Default)]
 pub struct View {
     buffer: Buffer,
     redraw: bool,
     size: Size,
     location: Location,
     scroll_offset: Position,
-    margin_bottom: usize,
 }
 
 impl View {
-    pub fn new(margin_bottom: usize) -> Self {
-        let mut view = View {
-            buffer: Buffer::default(),
-            size: Size::default(),
-            redraw: true,
-            location: Location::default(),
-            scroll_offset: Position::default(),
-            margin_bottom,
-        };
-
-        let size = Terminal::size().unwrap_or_default();
-        view.resize(size);
-        view
-    }
-
     fn build_welcome_message(width: usize) -> String {
         let mut welcome_message = format!("{NAME} editior --version {VERSION}");
         let len = welcome_message.len();
@@ -62,56 +48,16 @@ impl View {
         self.size.height
     }
 
-    fn render_line(at: usize, line: &str) {
-        let result = Terminal::print_row(at, line);
-        debug_assert!(result.is_ok(), "Failed to render line");
-    }
-
-    pub fn render(&mut self) {
-        if !self.redraw {
-            return;
-        }
-        self.redraw = false;
-        let editor_height = self.editor_height();
-        let Size { width, .. } = self.size;
-
-        let Position {
-            col: scroll_x,
-            row: scroll_y,
-        } = self.scroll_offset;
-
-        for current_row in 0..editor_height {
-            #[allow(clippy::integer_division)]
-            let vertical_center = editor_height / 3;
-
-            if let Some(line) = self.buffer.lines.get(current_row.saturating_add(scroll_y)) {
-                //not utf compliant?
-                let left = scroll_x;
-                let right = scroll_x.saturating_add(width);
-                Self::render_line(current_row, &line.get_graphemes(left..right));
-            } else if current_row == vertical_center && self.buffer.is_empty() {
-                Self::render_line(current_row, &Self::build_welcome_message(width));
-            } else {
-                Self::render_line(current_row, "~");
-            }
-        }
+    fn render_line(at: usize, line: &str) -> Result<(), Error> {
+        Terminal::print_row(at, line)?;
+        Ok(())
     }
 
     pub fn load(&mut self, file: &str) {
         if let Ok(buffer) = Buffer::load(file) {
             self.buffer = buffer;
         }
-        self.redraw = true;
-    }
-
-    fn resize(&mut self, size: Size) {
-        let Size { width, height } = size;
-        self.size = Size {
-            height: height.saturating_sub(self.margin_bottom),
-            width,
-        };
-        self.update_scroll_offset();
-        self.redraw = true;
+        self.mark_redraw(true);
     }
 
     fn insert_char(&mut self, char: char) {
@@ -127,7 +73,7 @@ impl View {
         if old_graphemes == new_graphemes {
         } else {
             self.handle_move_command(Direction::Right);
-            self.redraw = true;
+            self.mark_redraw(true);
         }
     }
     fn backspace(&mut self) {
@@ -152,18 +98,17 @@ impl View {
             return;
         }
         self.buffer.delete(self.location);
-        self.redraw = true;
+        self.mark_redraw(true);
     }
 
     fn insert_new_line(&mut self) {
         self.buffer.insert_new_line(self.location);
         self.move_down(1);
         self.move_to_start_of_line();
-        self.redraw = true;
+        self.mark_redraw(true);
     }
 
     fn save_file(&mut self) {
-        info!("save_file");
         //todo: ignore error for now
         let _ = self.buffer.save_file();
     }
@@ -344,7 +289,7 @@ impl View {
             scroll_y = y;
         }
 
-        self.redraw = true;
+        self.mark_redraw(true);
         if !(scroll_x == self.scroll_offset.col && scroll_y == self.scroll_offset.row) {
             //doesn't matter whether x or y changes
             self.scroll_offset = Position {
@@ -371,13 +316,57 @@ impl View {
     pub fn handle_command(&mut self, command: EditorCommand) {
         match command {
             EditorCommand::Move(direction) => self.handle_move_command(direction),
-            EditorCommand::Resize(size) => self.resize(size),
             EditorCommand::Insert(char) => self.insert_char(char),
             EditorCommand::BackSpace => self.backspace(),
             EditorCommand::Delete => self.delete(),
             EditorCommand::Enter => self.insert_new_line(),
-            EditorCommand::Quit => {}
+            EditorCommand::Resize(_) | EditorCommand::Quit => {}
             EditorCommand::SaveFile => self.save_file(),
         }
+    }
+}
+
+impl UIComponent for View {
+    fn mark_redraw(&mut self, redraw: bool) {
+        self.redraw = redraw;
+    }
+
+    fn needs_redraw(&self) -> bool {
+        self.redraw
+    }
+
+    fn set_size(&mut self, size: Size) {
+        self.size = size;
+        self.update_scroll_offset();
+    }
+
+    fn draw(&self, start_y: usize) -> Result<(), Error> {
+        let Size { width, height } = self.size;
+        let end_y = start_y.saturating_add(height);
+
+        let Position {
+            col: scroll_x,
+            row: scroll_y,
+        } = self.scroll_offset;
+
+        #[allow(clippy::integer_division)]
+        let vertical_center = start_y.saturating_add(height / 3);
+
+        for current_row in start_y..end_y {
+            #[allow(clippy::integer_division)]
+            let line_index = current_row.saturating_sub(start_y).saturating_add(scroll_y);
+            if let Some(line) = self.buffer.lines.get(line_index) {
+                //not utf compliant?
+                let left = scroll_x;
+                let right = scroll_x.saturating_add(width);
+                Self::render_line(current_row, &line.get_graphemes(left..right))?;
+            } else if current_row == vertical_center && self.buffer.is_empty() {
+                Self::render_line(current_row, &Self::build_welcome_message(width))?;
+            } else {
+                Self::render_line(current_row, "~")?;
+            }
+        }
+
+        Ok(())
     }
 }
