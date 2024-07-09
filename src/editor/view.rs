@@ -1,6 +1,6 @@
 //one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three twenty-four twenty-five twenty-six twenty-seven twenty-eight twenty-nine thirty thirty-one thirty-two thirty-three thirty-four thirty-five thirty-six thirty-seven thirty-eight thirty-nine forty forty-one forty-two forty-three forty-four forty-five forty-six forty-seven forty-eight forty-nine fifty fifty-one fifty-two fifty-three fifty-four fifty-five
 use super::{
-    editorcommand::{Direction, EditorCommand},
+    command::{Edit, Move},
     terminal::{Position, Size, Terminal},
     uicomponent::UIComponent,
     view::location::Location,
@@ -53,11 +53,12 @@ impl View {
         Ok(())
     }
 
-    pub fn load(&mut self, file: &str) {
+    pub fn load(&mut self, file: &str) -> Result<(), Error> {
         if let Ok(buffer) = Buffer::load(file) {
             self.buffer = buffer;
         }
         self.mark_redraw(true);
+        Ok(())
     }
 
     fn insert_char(&mut self, char: char) {
@@ -70,16 +71,15 @@ impl View {
         self.buffer.insert_char(char, self.location);
         let new_graphemes = self.buffer.lines.get(y).map_or(0, Line::grapheme_count);
 
-        if old_graphemes == new_graphemes {
-        } else {
-            self.handle_move_command(Direction::Right);
+        if old_graphemes != new_graphemes {
+            self.handle_move_command(Move::Right);
             self.mark_redraw(true);
         }
     }
-    fn backspace(&mut self) {
+    fn delete_backward(&mut self) {
         //todo: compare without indirection(direct struct comparison)
         if self.location.x != 0 || self.location.y != 0 {
-            self.handle_move_command(Direction::LeftUp);
+            self.handle_move_command(Move::LeftUp);
             self.delete();
         }
     }
@@ -108,71 +108,9 @@ impl View {
         self.mark_redraw(true);
     }
 
-    fn save_file(&mut self) {
-        //todo: ignore error for now
-        let _ = self.buffer.save_file();
-    }
-
-    /// UP
-    /// moves the cursor upward by 1
-    /// DOWN
-    /// moves the cursor downward by 1
-    /// LEFT
-    /// moves the cursor left by 1
-    /// RIGHT
-    /// moves the cursor rightward by 1
-    /// maximum right is end of line
-    /// HOME
-    /// moves the cursor to start of line
-    /// END
-    /// moves the cursor to end of the line
-    ///
-    /// PAGEUP
-    /// scroll the page upward by current height of the terminal
-    /// cursor will be at the bottom of the view
-    /// PAGEDOWN
-    /// scroll the page downward by current height of the terminal
-    ///
-    /// during vertical movement: x will be adjusted if x of prev line is greater then line length
-    /// move_* command changes the `location` field only.
-    /// move_* also donot do cursor spanning on neither horizontal or vertical direction.
-    /// for scrolling need to call corresponding function.
-    fn handle_move_command(&mut self, direction: Direction) {
-        match direction {
-            //vertical
-            Direction::Up => {
-                self.move_up(1);
-            }
-            Direction::Down => {
-                self.move_down(1);
-            }
-            Direction::PageUp => {
-                self.move_up(self.editor_height().saturating_sub(1));
-            }
-            Direction::PageDown => {
-                self.move_down(self.editor_height().saturating_sub(1));
-            }
-            //horizontal
-            Direction::Left => {
-                self.move_left();
-            }
-            Direction::LeftUp => {
-                self.move_left_y();
-            }
-            Direction::RightUp => {
-                self.move_right_y();
-            }
-            Direction::Right => {
-                self.move_right();
-            }
-            Direction::Home => {
-                self.move_to_start_of_line();
-            }
-            Direction::End => {
-                self.move_to_end_of_line();
-            }
-        }
-        self.update_scroll_offset();
+    pub fn save(&mut self) -> Result<(), Error> {
+        self.buffer.save_file()?;
+        Ok(())
     }
 
     //region: cursor movement
@@ -313,15 +251,62 @@ impl View {
         }
     }
 
-    pub fn handle_command(&mut self, command: EditorCommand) {
+    pub fn is_modified(&self) -> bool {
+        self.buffer.is_modified
+    }
+
+    /// UP
+    /// moves the cursor upward by 1
+    /// DOWN
+    /// moves the cursor downward by 1
+    /// LEFT
+    /// moves the cursor left by 1
+    /// RIGHT
+    /// moves the cursor rightward by 1
+    /// maximum right is end of line
+    /// HOME
+    /// moves the cursor to start of line
+    /// END
+    /// moves the cursor to end of the line
+    ///
+    /// PAGEUP
+    /// scroll the page upward by current height of the terminal
+    /// cursor will be at the bottom of the view
+    /// PAGEDOWN
+    /// scroll the page downward by current height of the terminal
+    ///
+    /// during vertical movement: x will be adjusted if x of prev line is greater then line length
+    /// move_* command changes the `location` field only.
+    /// move_* also donot do cursor spanning on neither horizontal or vertical direction.
+    /// for scrolling need to call corresponding function.
+    pub fn handle_move_command(&mut self, direction: Move) {
+        #[allow(clippy::enum_glob_use)]
+        use Move::*;
+        match direction {
+            //vertical
+            Up => self.move_up(1),
+            Down => self.move_down(1),
+            PageUp => self.move_up(self.editor_height().saturating_sub(1)),
+            PageDown => self.move_down(self.editor_height().saturating_sub(1)),
+            //horizontal
+            Left => self.move_left(),
+            LeftUp => self.move_left_y(),
+            RightUp => self.move_right_y(),
+            Right => self.move_right(),
+            StartOfLine => self.move_to_start_of_line(),
+            EndOfLine => self.move_to_end_of_line(),
+        }
+        self.update_scroll_offset();
+    }
+
+    pub fn handle_edit_command(&mut self, command: Edit) {
+        #[allow(clippy::enum_glob_use)]
+        use Edit::*;
         match command {
-            EditorCommand::Move(direction) => self.handle_move_command(direction),
-            EditorCommand::Insert(char) => self.insert_char(char),
-            EditorCommand::BackSpace => self.backspace(),
-            EditorCommand::Delete => self.delete(),
-            EditorCommand::Enter => self.insert_new_line(),
-            EditorCommand::Resize(_) | EditorCommand::Quit => {}
-            EditorCommand::SaveFile => self.save_file(),
+            Insert(char) => self.insert_char(char),
+            InsertNewLine => self.insert_new_line(),
+            Delete => self.delete(),
+            DeleteBackward => self.delete_backward(),
         }
     }
 }

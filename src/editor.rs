@@ -3,22 +3,22 @@ use std::{
     panic::{set_hook, take_hook},
 };
 
-use crossterm::event::{read, Event, KeyEvent, KeyEventKind};
+use crossterm::event::{read, Event};
 
-mod editorcommand;
+mod command;
 mod messagebar;
 mod statusbar;
 mod terminal;
 mod uicomponent;
 mod view;
 
+use command::{Action, Command};
 use messagebar::MessageBar;
 use statusbar::StatusBar;
 use terminal::{Size, Terminal};
 use uicomponent::UIComponent;
 use view::View;
 
-use self::editorcommand::EditorCommand;
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct DocumentStatus {
     curr_location: view::location::Location,
@@ -61,7 +61,11 @@ impl Editor {
 
         let args: Vec<String> = std::env::args().collect();
         if let Some(file) = args.get(1) {
-            editor.view.load(file);
+            if editor.view.load(file).is_err() {
+                editor
+                    .messagebar
+                    .update_message("couldnot load file {file}");
+            };
         }
 
         editor.update_status();
@@ -96,26 +100,41 @@ impl Editor {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
+    fn process_command(&mut self, command: Command) {
+        match command {
+            Command::Edit(command) => self.view.handle_edit_command(command),
+            Command::Move(command) => self.view.handle_move_command(command),
+            Command::Action(command) => self.handle_action_command(command),
+        }
+    }
+
+    fn handle_action_command(&mut self, action: command::Action) {
+        match action {
+            Action::Save => self.handle_save(),
+            Action::Quit => self.handle_quit(),
+            Action::Resize(size) => self.resize(size),
+        }
+    }
+    fn handle_save(&mut self) {
+        if self.view.save().is_ok() {
+            self.messagebar.update_message("File saved successfully");
+        } else {
+            self.messagebar.update_message("Errow while saving file");
+        }
+    }
+
+    fn handle_quit(&mut self) {
+        if self.view.is_modified() {
+            self.messagebar
+                .update_message("please save the file before closing");
+        } else {
+            self.should_quit = true;
+        }
+    }
+
     fn handle_event(&mut self, event: Event) {
-        let should_handle = match &event {
-            Event::Resize(_, _) => true,
-            Event::Key(KeyEvent { kind, .. }) => kind == &KeyEventKind::Press,
-            _ => false,
-        };
-        if should_handle {
-            match EditorCommand::try_from(event) {
-                Ok(command) => {
-                    if matches!(command, EditorCommand::Quit) {
-                        self.should_quit = true;
-                    } else if let EditorCommand::Resize(size) = command {
-                        self.resize(size);
-                    } else {
-                        self.view.handle_command(command);
-                    }
-                }
-                Err(_err) => {}
-            }
+        if let Ok(command) = Command::try_from(event) {
+            self.process_command(command);
         }
     }
 
