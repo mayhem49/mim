@@ -9,7 +9,7 @@ use super::{
 use std::io::Error;
 
 mod buffer;
-mod line;
+pub mod line;
 pub mod location;
 
 use buffer::Buffer;
@@ -18,7 +18,7 @@ use line::Line;
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-//location: location in the test
+//location: location in the text
 //y->current line in the text
 //x->current grapheme in the text
 //
@@ -54,9 +54,8 @@ impl View {
     }
 
     pub fn load(&mut self, file: &str) -> Result<(), Error> {
-        if let Ok(buffer) = Buffer::load(file) {
-            self.buffer = buffer;
-        }
+        let buffer = Buffer::load(file)?;
+        self.buffer = buffer;
         self.mark_redraw(true);
         Ok(())
     }
@@ -110,6 +109,10 @@ impl View {
 
     pub fn save(&mut self) -> Result<(), Error> {
         self.buffer.save_file()?;
+        Ok(())
+    }
+    pub fn save_as(&mut self, filename: String) -> Result<(), Error> {
+        self.buffer.save_as(filename)?;
         Ok(())
     }
 
@@ -308,6 +311,10 @@ impl View {
             Delete => self.delete(),
             DeleteBackward => self.delete_backward(),
         }
+    }
+
+    pub fn is_unnamed(&self) -> bool {
+        self.buffer.filename.is_none()
     }
 }
 

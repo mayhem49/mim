@@ -133,6 +133,9 @@ impl Line {
         self.fragments.len()
     }
 
+    pub fn width(&self) -> usize {
+        self.width_until(self.fragments.len())
+    }
     pub fn width_until(&self, grapheme_index: usize) -> usize {
         self.fragments
             .iter()
@@ -157,7 +160,7 @@ impl Line {
     }
 
     pub fn append_char(&mut self, char: char) {
-        self.insert_char(char, self.grapheme_count())
+        self.insert_char(char, self.grapheme_count());
     }
 
     pub fn remove_grapheme_at(&mut self, remove_index: usize) {

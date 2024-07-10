@@ -77,6 +77,8 @@ impl TryFrom<KeyEvent> for Edit {
 pub enum Action {
     Save,
     Quit,
+    ForceQuit,
+    Dismiss,
     Resize(Size),
 }
 
@@ -91,7 +93,9 @@ impl TryFrom<KeyEvent> for Action {
         } = event;
         match (code, modifiers) {
             (KeyCode::Char('q'), KeyModifiers::CONTROL) => Ok(Quit),
+            (KeyCode::Char('w'), KeyModifiers::CONTROL) => Ok(ForceQuit),
             (KeyCode::Char('s' | 'o'), KeyModifiers::CONTROL) => Ok(Save),
+            (KeyCode::Esc, KeyModifiers::NONE) => Ok(Dismiss),
             _ => Err(format!("no corresponding action command for {event:?}")),
         }
     }

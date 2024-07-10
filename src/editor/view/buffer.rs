@@ -32,6 +32,14 @@ impl Buffer {
         }
     }
 
+    pub fn set_file_name(&mut self, filename: String) {
+        self.filename = Some(filename);
+    }
+    pub fn save_as(&mut self, filename: String) -> Result<(), Error> {
+        self.set_file_name(filename);
+        self.save_file()?;
+        Ok(())
+    }
     pub fn save_file(&mut self) -> Result<(), Error> {
         //do nothing if filename doesnot exist
         if self.filename.is_none() {
