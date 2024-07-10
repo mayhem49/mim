@@ -156,9 +156,23 @@ impl Line {
         self.fragments = Self::str_to_fragments(&result);
     }
 
+    pub fn append_char(&mut self, char: char) {
+        self.insert_char(char, self.grapheme_count())
+    }
+
     pub fn remove_grapheme_at(&mut self, remove_index: usize) {
         // do tutorial's way
-        self.fragments.remove(remove_index);
+        let mut result = String::new();
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            if index != remove_index {
+                result.push_str(&fragment.grapheme);
+            }
+        }
+        self.fragments = Self::str_to_fragments(&result);
+    }
+
+    pub fn remove_last(&mut self) {
+        self.remove_grapheme_at(self.grapheme_count().saturating_sub(1));
     }
 
     pub fn concat(&mut self, other: &Self) {
