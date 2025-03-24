@@ -1,2 +1,1 @@
-This project is rewriting code from https://www.flenker.blog/hecto/ to learn rust.
-
+This project is a personal learning exercise in Rust, inspired by [Flenker's Hecto](https://www.flenker.blog/hecto/). The goal is to deepen my understanding of Rust by building a simple terminal-based text editor from scratch.
